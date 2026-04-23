@@ -3,16 +3,28 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { scanMocks, type MockRoute } from './scanner.js';
 import { matchRoute } from './matcher.js';
-import { invokeHandler, type ApitemkinHandler } from './runtime.js';
+import { invokeHandler, sleep, type ApitemkinHandler } from './runtime.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
   mocksDir?: string;
   urlPrefix?: string;
+  /**
+   * Global artificial delay (in milliseconds) before sending each response.
+   * Simulates real-world network latency during local development.
+   * Per-route override is available via `RichResponse.delay` from a code mock.
+   * Default: 150.
+   */
+  delay?: number;
 }
 
 export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
-  const { enabled = true, mocksDir = 'mocks', urlPrefix = '/api' } = options;
+  const {
+    enabled = true,
+    mocksDir = 'mocks',
+    urlPrefix = '/api',
+    delay: globalDelay = 150,
+  } = options;
 
   let resolvedMocksDir = '';
   let routes: MockRoute[] = [];
@@ -59,6 +71,7 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
           try {
             if (match.route.kind === 'json') {
               const body = await readFile(match.route.filePath, 'utf8');
+              if (globalDelay > 0) await sleep(globalDelay);
               res.setHeader('Content-Type', 'application/json');
               res.statusCode = 200;
               res.end(body);
@@ -69,6 +82,8 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
                 req,
                 match.params,
               );
+              const effectiveDelay = result.delay ?? globalDelay;
+              if (effectiveDelay > 0) await sleep(effectiveDelay);
               for (const [k, v] of Object.entries(result.headers)) {
                 res.setHeader(k, v);
               }

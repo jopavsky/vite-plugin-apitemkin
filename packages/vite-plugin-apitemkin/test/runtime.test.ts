@@ -119,4 +119,8 @@ describe('isRichResponse', () => {
   it('accepts object with body, status, and headers', () => {
     expect(isRichResponse({ status: 200, headers: {}, body: {} })).toBe(true);
   });
+
+  it('accepts object with body and delay', () => {
+    expect(isRichResponse({ delay: 100, body: {} })).toBe(true);
+  });
 });

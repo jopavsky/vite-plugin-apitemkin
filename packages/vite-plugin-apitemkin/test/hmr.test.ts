@@ -41,7 +41,7 @@ beforeAll(async () => {
   server = await createServer({
     root,
     server: { port: 0 },
-    plugins: [apitemkin()],
+    plugins: [apitemkin({ delay: 0 })],
     logLevel: 'silent',
   });
   await server.listen();

@@ -15,6 +15,8 @@ export interface RichResponse<TBody = unknown> {
   status?: number;
   headers?: Record<string, string>;
   body: TBody;
+  /** Override the plugin's global delay for this response. Milliseconds. */
+  delay?: number;
 }
 
 export type ApitemkinHandler<TBody = unknown> = (
@@ -50,14 +52,15 @@ export function parseQuery(url: string): Record<string, string | string[]> {
 export function isRichResponse(v: unknown): v is RichResponse {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   if (!('body' in v)) return false;
-  // Require status or headers to disambiguate from a plain body that happens to have a `body` key.
-  return 'status' in v || 'headers' in v;
+  // Require status, headers, or delay to disambiguate from a plain body that happens to have a `body` key.
+  return 'status' in v || 'headers' in v || 'delay' in v;
 }
 
 export interface NormalizedResponse {
   status: number;
   headers: Record<string, string>;
   body: unknown;
+  delay?: number;
 }
 
 export async function invokeHandler(
@@ -92,7 +95,12 @@ export async function invokeHandler(
       status: result.status ?? 200,
       headers: result.headers ?? {},
       body: result.body,
+      delay: result.delay,
     };
   }
   return { status: 200, headers: {}, body: result };
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

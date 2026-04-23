@@ -69,6 +69,9 @@ describe('exported types', () => {
     expectTypeOf<RichResponse<User>['headers']>().toEqualTypeOf<
       Record<string, string> | undefined
     >();
+    expectTypeOf<RichResponse<User>['delay']>().toEqualTypeOf<
+      number | undefined
+    >();
   });
 
   it('ApitemkinHandler return type allows body, rich, or promise of either', () => {

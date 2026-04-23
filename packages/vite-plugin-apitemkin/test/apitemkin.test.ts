@@ -32,11 +32,12 @@ describe('apitemkin()', () => {
     expect(namedApitemkin).toBe(apitemkin);
   });
 
-  it('accepts ApitemkinOptions type with all v0.1 fields', () => {
+  it('accepts ApitemkinOptions type with all current fields', () => {
     const opts: ApitemkinOptions = {
       enabled: false,
       mocksDir: 'mocks',
       urlPrefix: '/api',
+      delay: 100,
     };
     expect(apitemkin(opts).name).toBe('vite-plugin-apitemkin');
   });

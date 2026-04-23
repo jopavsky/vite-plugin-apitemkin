@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Dynamic JS/TS/MJS callback responses: drop a `.ts`, `.js`, or `.mjs` file in `mocks/`
-  with a default-exported handler `(req) => body | { status?, headers?, body }`.
+  with a default-exported handler `(req) => body | { status?, headers?, body, delay? }`.
 - `defineMock<T>(handler)` helper for full type inference on response and request shape.
 - Exported handler types: `ApitemkinHandler<T>`, `ApitemkinRequest<T>`, `RichResponse<T>`.
 - Automatic JSON request body parsing (when `Content-Type: application/json`); `body` is
@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sample dynamic mocks in the playground: `whoami.ts`, `echo.post.ts`, `users/[id].ts`.
 - New `MockRouteKind` (`'json' | 'code'`) field on `MockRoute` so tooling can introspect
   whether a route is a static file or a handler.
+- New `delay` plugin option — global artificial latency in ms before each response.
+  Default `150`. Pass `0` to disable.
+- Per-route `delay` field on `RichResponse` — code mocks can override the global delay
+  for a specific endpoint (useful for "slow this one endpoint" or "make this one instant").
 
 ### Changed
 - Scanner discovers `.ts`/`.js`/`.mjs` files alongside `.json`. Same naming conventions

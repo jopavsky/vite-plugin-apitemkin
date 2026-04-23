@@ -130,6 +130,12 @@ export default defineMock(() => ({
 
 // mocks/echo.post.ts — JSON body parsed automatically when Content-Type matches
 export default defineMock(({ body }) => ({ received: body }));
+
+// mocks/slow.ts — override the global delay for a specific endpoint
+export default defineMock(() => ({
+  delay: 2000,
+  body: { took: 'a while' },
+}));
 ```
 
 ### File-form rules
@@ -153,11 +159,12 @@ export default handler;
 
 ## Options
 
-| Option      | Type      | Default   | Description                                                            |
-| ----------- | --------- | --------- | ---------------------------------------------------------------------- |
-| `enabled`   | `boolean` | `true`    | Toggle the plugin off without removing it from `vite.config.ts`.       |
-| `mocksDir`  | `string`  | `'mocks'` | Directory to scan for mock files. Resolved relative to the Vite root.  |
-| `urlPrefix` | `string`  | `'/api'`  | URL prefix to mount mocks under. Pass `''` to mount at the host root.  |
+| Option      | Type      | Default   | Description                                                                       |
+| ----------- | --------- | --------- | --------------------------------------------------------------------------------- |
+| `enabled`   | `boolean` | `true`    | Toggle the plugin off without removing it from `vite.config.ts`.                  |
+| `mocksDir`  | `string`  | `'mocks'` | Directory to scan for mock files. Resolved relative to the Vite root.             |
+| `urlPrefix` | `string`  | `'/api'`  | URL prefix to mount mocks under. Pass `''` to mount at the host root.             |
+| `delay`     | `number`  | `150`     | Global artificial delay in ms before each response — simulates network latency. Pass `0` to disable. Code mocks can override per-route via `RichResponse.delay`. |
 
 ### Dev-only by construction
 

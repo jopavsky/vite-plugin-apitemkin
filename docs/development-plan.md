@@ -87,9 +87,10 @@ The smallest thing a user can drop in and find genuinely useful.
 
 Same folder convention, but `.ts` / `.js` / `.mjs` files alongside `.json`.
 
-- Default export is a handler: `(req) => body | { status?, headers?, body } | Promise<...>`.
+- Default export is a handler: `(req) => body | { status?, headers?, body, delay? } | Promise<...>`.
 - Handler receives a typed request context: `method`, `url`, `params`, `query`, `body`, `headers`.
 - `defineMock<T>(handler)` helper for type inference; identity at runtime.
+- New `delay` plugin option (default 150ms) simulates real network latency. Per-route override via `RichResponse.delay`.
 - Request body parsed automatically when `Content-Type: application/json`. Other content types leave `body` as `undefined`.
 - Loaded via Vite's `server.ssrLoadModule` — free TypeScript support, automatic HMR on file change.
 - String returns become `text/plain`; `Buffer` returns are sent verbatim; everything else is `JSON.stringify`'d. Override `Content-Type` via the rich-response `headers`.
