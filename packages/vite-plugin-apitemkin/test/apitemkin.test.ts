@@ -11,20 +11,19 @@ describe('apitemkin()', () => {
     expect(plugin.name).toBe('vite-plugin-apitemkin');
   });
 
-  it('defaults to dev-only (apply: serve)', () => {
+  it('is hardcoded dev-only (apply: serve)', () => {
     expect(apitemkin().apply).toBe('serve');
+    expect(apitemkin({ enabled: false }).apply).toBe('serve');
   });
 
-  it('honors apply: "build"', () => {
-    expect(apitemkin({ apply: 'build' }).apply).toBe('build');
-  });
-
-  it('respects apply: "both" by leaving apply undefined', () => {
-    expect(apitemkin({ apply: 'both' }).apply).toBeUndefined();
-  });
-
-  it('configResolved hook does not throw', () => {
+  it('configResolved hook does not throw on a valid Vite config shape', () => {
     const plugin = apitemkin();
+    const hook = plugin.configResolved;
+    expect(() => (hook as any)?.({ root: '/tmp/whatever' })).not.toThrow();
+  });
+
+  it('configResolved hook is a no-op when disabled', () => {
+    const plugin = apitemkin({ enabled: false });
     const hook = plugin.configResolved;
     expect(() => (hook as any)?.({} as any)).not.toThrow();
   });
@@ -33,8 +32,12 @@ describe('apitemkin()', () => {
     expect(namedApitemkin).toBe(apitemkin);
   });
 
-  it('accepts ApitemkinOptions type', () => {
-    const opts: ApitemkinOptions = { enabled: false, apply: 'both' };
+  it('accepts ApitemkinOptions type with all v0.1 fields', () => {
+    const opts: ApitemkinOptions = {
+      enabled: false,
+      mocksDir: 'mocks',
+      urlPrefix: '/api',
+    };
     expect(apitemkin(opts).name).toBe('vite-plugin-apitemkin');
   });
 });

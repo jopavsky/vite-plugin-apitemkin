@@ -1,21 +1,101 @@
-import type { Plugin } from 'vite';
+import { readFile } from 'node:fs/promises';
+import { isAbsolute, relative, resolve } from 'node:path';
+import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
+import { scanMocks, type MockRoute } from './scanner.js';
+import { matchRoute } from './matcher.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
-  apply?: 'dev' | 'build' | 'both';
+  mocksDir?: string;
+  urlPrefix?: string;
 }
 
 export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
-  const { enabled = true, apply = 'dev' } = options;
+  const { enabled = true, mocksDir = 'mocks', urlPrefix = '/api' } = options;
+
+  let resolvedMocksDir = '';
+  let routes: MockRoute[] = [];
 
   return {
     name: 'vite-plugin-apitemkin',
-    apply: apply === 'both' ? undefined : apply === 'build' ? 'build' : 'serve',
-    configResolved() {
+    apply: 'serve',
+
+    configResolved(config: ResolvedConfig) {
       if (!enabled) return;
-      // No-op for v0.0.2.
+      resolvedMocksDir = resolve(config.root, mocksDir);
+    },
+
+    async configureServer(server: ViteDevServer) {
+      if (!enabled) return;
+
+      const rescan = async () => {
+        try {
+          routes = await scanMocks(resolvedMocksDir, urlPrefix);
+        } catch (err) {
+          server.config.logger.error(
+            `apitemkin: ${(err as Error).message}`,
+          );
+        }
+      };
+
+      await rescan();
+
+      server.watcher.add(resolvedMocksDir);
+      const handleChange = (file: string) => {
+        if (!file.endsWith('.json')) return;
+        if (!isInsideMocks(file, resolvedMocksDir)) return;
+        rescan();
+      };
+      server.watcher.on('add', handleChange);
+      server.watcher.on('change', handleChange);
+      server.watcher.on('unlink', handleChange);
+
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url || !req.method) return next();
+
+        const match = matchRoute(routes, req.method, req.url, urlPrefix);
+        if (match) {
+          try {
+            const body = await readFile(match.route.filePath, 'utf8');
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(body);
+          } catch (err) {
+            next(err);
+          }
+          return;
+        }
+
+        // Claim the prefix: any unmatched URL under it gets a 404 (not SPA fallback).
+        if (urlPrefix && isUnderPrefix(req.url, urlPrefix)) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({ error: `No mock for ${req.method} ${req.url}` }),
+          );
+          return;
+        }
+
+        next();
+      });
     },
   };
 }
 
+function isUnderPrefix(url: string, prefix: string): boolean {
+  const path = url.split('?')[0]!.split('#')[0]!;
+  const norm = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  return path === norm || path.startsWith(norm + '/');
+}
+
+function isInsideMocks(file: string, mocksDir: string): boolean {
+  const abs = isAbsolute(file) ? file : resolve(file);
+  const rel = relative(mocksDir, abs);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+}
+
 export { apitemkin };
+export { scanMocks } from './scanner.js';
+export type { HttpMethod, MockRoute, PathSegment } from './scanner.js';
+export { matchRoute } from './matcher.js';
+export type { MatchResult } from './matcher.js';

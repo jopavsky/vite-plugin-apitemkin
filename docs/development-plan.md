@@ -36,8 +36,28 @@ Streaming gaps in some of these plugins are a *known* deferral here, not somethi
 - **Vite middleware via `configureServer`.** Same port, no proxy, no separate dev server.
 - **HMR via `handleHotUpdate`.** Watching the mocks dir; add/edit/delete a file → routes update without a page reload.
 - **Dev-only enforced.** Plugin's `apply` defaults to `'serve'`. Loud warning if used during build.
-- **TypeScript native, ships `.d.ts`.** Authored in TS, built with tsup to ESM + declarations.
+- **TypeScript native, ships `.d.ts`.** Authored in TS, built with tsdown (Rolldown-based) to ESM + declarations.
 - **Zero runtime dependencies.** URL pattern matching, body parsing — all from Node built-ins or tiny in-repo utilities.
+
+### Folder convention rules
+
+Two forms, mutually exclusive per resource:
+
+1. **Flat file** when a resource has no sub-routes:
+   - `mocks/healthcheck.json` → `GET /api/healthcheck`
+   - `mocks/users.post.json` → `POST /api/users` (only if no `users/` folder exists)
+
+2. **Folder + index** when a resource has children:
+   - `mocks/users/index.json` → `GET /api/users`
+   - `mocks/users/index.post.json` → `POST /api/users`
+   - `mocks/users/[id].json` → `GET /api/users/:id`
+
+Specifically:
+
+- A file named `index.{method}?.json` inside a folder uses the **folder's name** as the URL segment, not the literal "index".
+- A file `X.{method}?.json` and a folder named `X/` cannot be siblings. The scanner errors at scan time with a guided `mv` command pointing to the consolidated form.
+- `index` is reserved as a basename. A literal URL `/api/foo/index` cannot be expressed.
+- A folder without an `index.json` is fine — the URL prefix simply has no own response, only children.
 
 ## 4. Repository layout
 
@@ -55,10 +75,12 @@ The smallest thing a user can drop in and find genuinely useful.
 - Folder scanner reads a configurable `mocks/` root.
 - Filename suffix → method; default GET.
 - `[id]`-style segments → dynamic single-segment params.
+- `index.{method}?.json` inside a folder uses the folder name as the URL segment.
+- File/folder name collision is rejected at scan time with a guided migration message.
 - JSON files only. File contents = response body, served as `application/json`.
 - HMR re-scans on add/edit/delete of any file under the mocks root.
 - Dev-only enforced; loud warning if invoked at build time.
-- Configurable URL prefix (default: none — `mocks/users.json` → `GET /users`).
+- Configurable URL prefix (default: `/api`).
 - Vitest coverage including end-to-end tests against a real Vite dev server (using the playground or an inline fixture).
 
 ## 6. v0.2 — Dynamic callback responses
@@ -86,7 +108,7 @@ These may be reconsidered post-v1.0 if there's real demand. They are deliberate 
 | Version  | Theme                                   | Acceptance criteria                                                                                |
 | -------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `0.0.1`  | Scaffold (JS + JSDoc, single package)   | Done. Will be superseded by `0.0.2` before any tag is published.                                   |
-| `0.0.2`  | Restructure: monorepo + TS + playground | Empty TS plugin, tsup build, playground workspace, smoke test, CI-ready scripts.                   |
+| `0.0.2`  | Restructure: monorepo + TS + playground | Empty TS plugin, tsdown build, playground workspace, smoke test, CI-ready scripts.                 |
 | `0.1.0`  | MVP folder-based JSON mocks             | Folder scanner, method suffix, `[id]` params, HMR, dev-only, >=80% coverage, playground demoing it. |
 | `0.2.0`  | Dynamic JS/TS callback responses        | Code files alongside JSON files, request body parsing, exported types for handler signatures.      |
 | `1.0.0`  | Stable API + docs                       | API freeze, semver guarantees, full README/recipes, no breaking changes planned.                   |
@@ -94,9 +116,7 @@ These may be reconsidered post-v1.0 if there's real demand. They are deliberate 
 
 ## 9. Open questions
 
-- **Default URL prefix.** No prefix (`mocks/users.json` → `/users`) or opinionated default `/api`?
 - **Catch-all convention.** `[...slug].get.json` (Next-style)?
-- **Conflict resolution.** If both `users.json` and `users.get.json` exist, which wins? Suggested: error loudly.
 - **npm package name.** `vite-plugin-apitemkin` (unscoped) or `@opavsky/vite-plugin-apitemkin`?
 - **Vite version floor.** Keep `^5 || ^6 || ^7` or drop 5 to simplify HMR work?
 - **Node version floor.** `>=18` or `>=20`?

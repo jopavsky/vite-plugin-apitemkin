@@ -34,14 +34,14 @@ vite-plugin-apitemkin/             (workspace root — this dir)
 | --- | --- |
 | `npm test` | Runs vitest in every workspace that has a `test` script. |
 | `npm run typecheck` | Runs `tsc --noEmit` in every workspace that has a `typecheck` script. |
-| `npm run build` | Builds the plugin (`tsup` → ESM + `.d.ts` in `dist/`). |
+| `npm run build` | Builds the plugin (`tsdown` → ESM + `.d.ts` in `dist/`). |
 
 For per-package work, `cd` into the package or use `npm <script> -w <package-name>`.
 
 ## Plugin package conventions
 
 - Source is TypeScript in `packages/vite-plugin-apitemkin/src/`.
-- Built with **tsup** to ESM + `.d.ts` (`dist/`).
+- Built with **tsdown** (Rolldown-based) to ESM + `.d.ts` (`dist/`).
 - `verbatimModuleSyntax: true` is on globally — type-only imports must use `import type` or the inline `type` keyword.
 - Use `import type { Plugin } from 'vite'` rather than redeclaring Vite types.
 
