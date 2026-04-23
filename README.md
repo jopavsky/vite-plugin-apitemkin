@@ -163,7 +163,6 @@ Every existing option has rough edges:
 
 | Version  | Status    | Theme                                                    |
 | -------- | --------- | -------------------------------------------------------- |
-| `1.0.0`  | in branch | API freeze, SemVer guarantees, Vite 7 + Node 20          |
 | `1.1.0`  | post-1.0  | Devtools overlay UI for scenario switching               |
 | post-1.0 | maybe     | Catch-all params (`[...slug]`); WebSocket/SSE support    |
 
