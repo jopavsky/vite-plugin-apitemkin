@@ -8,7 +8,7 @@ Plug-and-play mock API plugin for Vite. The folder structure is the API spec.
 npm i -D vite-plugin-apitemkin
 ```
 
-Peer dependency: `vite ^5 || ^6 || ^7`. Node `>=18`.
+Peer dependency: `vite ^7`. Node `>=20`.
 
 ## Usage
 
