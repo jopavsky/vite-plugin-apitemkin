@@ -11,7 +11,7 @@ function makeRoute(
   segments: PathSegment[],
   filePath = `/fake/${urlPattern.replace(/[/:]/g, '_')}.json`,
 ): MockRoute {
-  return { method, urlPattern, segments, filePath };
+  return { method, urlPattern, segments, filePath, kind: 'json' };
 }
 
 describe('matchRoute', () => {

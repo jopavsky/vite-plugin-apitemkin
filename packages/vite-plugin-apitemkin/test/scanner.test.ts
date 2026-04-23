@@ -263,4 +263,100 @@ describe('scanMocks', () => {
       expect(route!.urlPattern).toBe('/api/admin/users');
     });
   });
+
+  describe('v0.2 — code-file extensions', () => {
+    it('tags JSON routes with kind: "json"', async () => {
+      await write('users.json');
+      const [route] = await scanMocks(dir);
+      expect(route!.kind).toBe('json');
+    });
+
+    it('discovers a .ts mock as a GET route with kind: "code"', async () => {
+      await write('users.ts', 'export default () => ({})');
+      const [route] = await scanMocks(dir);
+      expect(route!.urlPattern).toBe('/api/users');
+      expect(route!.method).toBe('GET');
+      expect(route!.kind).toBe('code');
+    });
+
+    it('parses method suffix on .ts files', async () => {
+      await write('users.post.ts', 'export default () => ({})');
+      const [route] = await scanMocks(dir);
+      expect(route!.urlPattern).toBe('/api/users');
+      expect(route!.method).toBe('POST');
+      expect(route!.kind).toBe('code');
+    });
+
+    it.each([
+      ['ts', 'code'],
+      ['js', 'code'],
+      ['mjs', 'code'],
+    ])('recognises .%s extension and tags it as %s', async (ext, kind) => {
+      await write(`thing.${ext}`, 'export default () => ({})');
+      const [route] = await scanMocks(dir);
+      expect(route!.urlPattern).toBe('/api/thing');
+      expect(route!.kind).toBe(kind);
+    });
+
+    it('handles index.ts in a folder', async () => {
+      await write('users/index.ts', 'export default () => ({})');
+      const [route] = await scanMocks(dir);
+      expect(route!.urlPattern).toBe('/api/users');
+      expect(route!.kind).toBe('code');
+    });
+
+    it('handles [id].ts as a dynamic param route', async () => {
+      await write('users/[id].ts', 'export default () => ({})');
+      const [route] = await scanMocks(dir);
+      expect(route!.urlPattern).toBe('/api/users/:id');
+      expect(route!.segments).toEqual([
+        { kind: 'literal', value: 'users' },
+        { kind: 'param', name: 'id' },
+      ]);
+      expect(route!.kind).toBe('code');
+    });
+
+    it('returns mixed json + code routes in one scan', async () => {
+      await write('users.ts', 'export default () => ({})');
+      await write('posts.json');
+      const routes = await scanMocks(dir);
+      expect(routes).toHaveLength(2);
+      const byUrl = Object.fromEntries(routes.map((r) => [r.urlPattern, r.kind]));
+      expect(byUrl).toEqual({
+        '/api/users': 'code',
+        '/api/posts': 'json',
+      });
+    });
+
+    it('throws on JSON-vs-code collision and includes a "pick one" hint', async () => {
+      await write('users.json');
+      await write('users.ts', 'export default () => ({})');
+      await expect(scanMocks(dir)).rejects.toThrow(
+        /route conflict on GET \/api\/users[\s\S]*Pick one form per route/,
+      );
+    });
+
+    it('throws on same-method collision across kinds (POST .json vs .ts)', async () => {
+      await write('users.post.json');
+      await write('users.post.ts', 'export default () => ({})');
+      await expect(scanMocks(dir)).rejects.toThrow(
+        /route conflict on POST \/api\/users/,
+      );
+    });
+
+    it('does not conflict when methods differ across kinds', async () => {
+      await write('users.json');
+      await write('users.post.ts', 'export default () => ({})');
+      const routes = await scanMocks(dir);
+      expect(routes).toHaveLength(2);
+    });
+
+    it('detects sibling collision between a code file and a folder', async () => {
+      await write('users.ts', 'export default () => ({})');
+      await write('users/[id].json');
+      await expect(scanMocks(dir)).rejects.toThrow(
+        /ambiguous mock layout[\s\S]*users\.ts[\s\S]*users[/\\][\s\S]*index\.ts/,
+      );
+    });
+  });
 });
