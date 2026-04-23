@@ -43,12 +43,12 @@ export default defineMock(({ params }) => ({
 
 Handlers receive `params`, `query`, `body`, `headers` and return either the response body or `{ status?, headers?, body }`. Add, edit, or delete files at runtime — no dev-server restart needed. The plugin is dev-only; `vite build` ignores it.
 
-For multiple response variants per endpoint, use `defineScenarios`:
+For multiple response variants per endpoint, pass a scenarios map to `defineMock`:
 
 ```ts
-import { defineScenarios } from 'vite-plugin-apitemkin';
+import { defineMock } from 'vite-plugin-apitemkin';
 
-export default defineScenarios({
+export default defineMock({
   default: [{ id: 1, name: 'Ada' }],
   empty:   [],
   error:   { status: 500, body: { error: 'oops' } },

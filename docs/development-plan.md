@@ -99,12 +99,12 @@ Same folder convention, but `.ts` / `.js` / `.mjs` files alongside `.json`.
 
 ## 7. v0.3 — Scenarios (shipped)
 
-Named response variants for code mocks. JSON files stay as fixed responses; scenarios are exclusively a code-mock feature exposed via the `defineScenarios()` helper:
+Named response variants for code mocks. JSON files stay as fixed responses; scenarios are exclusively a code-mock feature exposed by passing a scenarios map to `defineMock` (instead of a handler function):
 
 ```ts
-import { defineScenarios } from 'vite-plugin-apitemkin';
+import { defineMock } from 'vite-plugin-apitemkin';
 
-export default defineScenarios({
+export default defineMock({
   default: [{ id: 1 }],
   empty:   [],
   error:   { status: 500, body: { error: 'oops' } },
@@ -120,7 +120,7 @@ export default defineScenarios({
 - Unknown scenario name → silent fallback to `default` + a `console.warn` from the dev server.
 - Discovery: `GET /_apitemkin/scenarios` returns a JSON list of every route with its kind (`'json' | 'code'`) and available scenario names.
 
-Why this shape over filename conventions: JSON files stay simple (no new grammar to learn); all variants for a route co-locate in one file; `defineScenarios` composes with v0.2's normalization so users learn one mental model.
+Why this shape over filename conventions: JSON files stay simple (no new grammar to learn); all variants for a route co-locate in one file; the unified `defineMock` API means there's only one helper to learn for both single handlers and multi-variant maps.
 
 ## 8. v0.4 — Devtools overlay (next)
 
@@ -144,7 +144,7 @@ These may be reconsidered post-v1.0 if there's real demand. They are deliberate 
 | `0.0.2` | done | Restructure: monorepo + TS + tsdown + playground |
 | `0.1.0` | shipped | Folder-based JSON mocks with HMR |
 | `0.2.0` | shipped | Dynamic JS/TS callback responses with `defineMock` |
-| `0.3.0` | in branch | Scenarios via `defineScenarios` + discovery endpoint |
+| `0.3.0` | in branch | Scenarios via `defineMock(scenariosMap)` overload + discovery endpoint |
 | `0.4.0` | next | Devtools overlay UI for scenario switching |
 | `1.0.0` | planned | API freeze, semver guarantees, full README/recipes |
 | post-1.0 | maybe | WebSocket and SSE support, if demand materializes |

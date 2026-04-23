@@ -28,6 +28,34 @@ export type ApitemkinHandler<TBody = unknown> = (
   req: ApitemkinRequest,
 ) => TBody | RichResponse<TBody> | Promise<TBody | RichResponse<TBody>>;
 
+/**
+ * One variant inside a scenarios map. Can be a plain body, a `RichResponse`,
+ * or an `ApitemkinHandler` function.
+ */
+export type ScenarioValue<TBody = unknown> =
+  | TBody
+  | RichResponse<TBody>
+  | ApitemkinHandler<TBody>;
+
+/**
+ * Scenarios map passed to {@link defineMock} for routes with multiple variants.
+ * The `default` key is required; other names are user-defined.
+ */
+export interface ScenariosMap<TBody = unknown> {
+  default: ScenarioValue<TBody>;
+  [name: string]: ScenarioValue<TBody>;
+}
+
+/**
+ * Handler returned by `defineMock(scenarios)` — same shape as
+ * {@link ApitemkinHandler} plus a `__apitemkin_scenarios` metadata array
+ * (used by the `/_apitemkin/scenarios` discovery endpoint).
+ */
+export interface ScenariosHandler<TBody = unknown>
+  extends ApitemkinHandler<TBody> {
+  __apitemkin_scenarios: string[];
+}
+
 export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const ct = req.headers['content-type'];
   if (!ct || !ct.toLowerCase().includes('application/json')) return undefined;

@@ -1,4 +1,4 @@
-import { defineScenarios } from 'vite-plugin-apitemkin';
+import { defineMock } from 'vite-plugin-apitemkin';
 
 interface Order {
   id: number;
@@ -6,7 +6,7 @@ interface Order {
   total: number;
 }
 
-export default defineScenarios<Order[]>({
+export default defineMock<Order[]>({
   default: [
     { id: 1, item: 'Lovelace pen', total: 12.5 },
     { id: 2, item: 'Linux mug', total: 9.0 },

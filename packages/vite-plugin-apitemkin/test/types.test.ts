@@ -49,6 +49,43 @@ describe('defineMock', () => {
   });
 });
 
+describe('defineMock with scenarios object', () => {
+  it('accepts a scenarios map and infers TBody from default', () => {
+    const h = defineMock<User>({
+      default: { id: 1, name: 'Ada' },
+      empty: { id: 0, name: '' },
+    });
+    // Returned as ScenariosHandler (a subtype of ApitemkinHandler)
+    expectTypeOf(h).toMatchTypeOf<ApitemkinHandler<User>>();
+    expectTypeOf(h.__apitemkin_scenarios).toEqualTypeOf<string[]>();
+  });
+
+  it('accepts function variants in the scenarios map', () => {
+    const h = defineMock<User>({
+      default: () => ({ id: 1, name: 'Ada' }),
+      computed: ({ params }) => ({
+        id: Number(params.id),
+        name: 'computed',
+      }),
+    });
+    expectTypeOf(h).toMatchTypeOf<ApitemkinHandler<User>>();
+  });
+
+  it('accepts rich response variants in the scenarios map', () => {
+    const h = defineMock<User>({
+      default: { id: 1, name: 'Ada' },
+      error: { status: 500, body: { id: 0, name: 'fail' } },
+    });
+    expectTypeOf(h).toMatchTypeOf<ApitemkinHandler<User>>();
+  });
+
+  it('TS infers ScenariosHandler when called with a scenarios map', () => {
+    const h = defineMock<User>({ default: { id: 1, name: 'Ada' } });
+    // The returned value carries the discovery metadata field at the type level
+    expectTypeOf(h).toHaveProperty('__apitemkin_scenarios');
+  });
+});
+
 describe('exported types', () => {
   it('ApitemkinRequest has the documented shape', () => {
     expectTypeOf<ApitemkinRequest['method']>().toBeString();

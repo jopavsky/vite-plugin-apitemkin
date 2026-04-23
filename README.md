@@ -159,13 +159,13 @@ export default handler;
 
 ## Scenarios
 
-A single endpoint can expose multiple named response variants — useful for previewing error states, empty states, slow responses, and the like without editing the mock between requests.
+A single endpoint can expose multiple named response variants — useful for previewing error states, empty states, slow responses, and the like without editing the mock between requests. Pass a scenarios map to `defineMock` instead of a function:
 
 ```ts
 // mocks/orders/index.ts
-import { defineScenarios } from 'vite-plugin-apitemkin';
+import { defineMock } from 'vite-plugin-apitemkin';
 
-export default defineScenarios<Order[]>({
+export default defineMock<Order[]>({
   default: [
     { id: 1, item: 'Lovelace pen', total: 12.5 },
     { id: 2, item: 'Linux mug', total: 9.0 },
@@ -177,7 +177,7 @@ export default defineScenarios<Order[]>({
 });
 ```
 
-Each variant value can be a plain body, a `RichResponse` (`{ status?, headers?, body, delay? }`), or a handler function — same rules as plain `defineMock`. The `default` key is required; other names are user-defined.
+`defineMock` accepts either a single handler function (the v0.2 form) **or** a scenarios map. When you pass a map, each variant value can be a plain body, a `RichResponse` (`{ status?, headers?, body, delay? }`), or a handler function — same normalization rules as the function form. The `default` key is required; other names are user-defined.
 
 ### Activating a scenario
 
@@ -227,11 +227,11 @@ curl http://localhost:5173/_apitemkin/scenarios
 ]
 ```
 
-JSON routes always show empty scenarios — only `defineScenarios` (or any handler that attaches `__apitemkin_scenarios`) appears with names.
+JSON routes always show empty scenarios — only `defineMock(scenariosMap)` (or any handler that attaches `__apitemkin_scenarios`) appears with names.
 
 ### JSON routes don't have scenarios
 
-JSON files stay as fixed responses. If you want variants on a route currently backed by a `.json` file, convert it to a `.ts` file using `defineScenarios`. Move the existing JSON content under the `default` key.
+JSON files stay as fixed responses. If you want variants on a route currently backed by a `.json` file, convert it to a `.ts` file using `defineMock` with a scenarios map. Move the existing JSON content under the `default` key.
 
 ## Options
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { defineScenarios } from '../src/scenarios.js';
+import { defineMock } from '../src/index.js';
 import type { ApitemkinRequest } from '../src/runtime.js';
 
 function makeReq(overrides: Partial<ApitemkinRequest> = {}): ApitemkinRequest {
@@ -14,13 +14,13 @@ function makeReq(overrides: Partial<ApitemkinRequest> = {}): ApitemkinRequest {
   };
 }
 
-describe('defineScenarios', () => {
+describe('defineMock with scenarios object', () => {
   beforeEach(() => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
   it('attaches __apitemkin_scenarios with all keys', () => {
-    const handler = defineScenarios<unknown>({
+    const handler = defineMock<unknown>({
       default: { ok: true },
       error: { status: 500, body: {} },
       empty: [],
@@ -33,19 +33,19 @@ describe('defineScenarios', () => {
   });
 
   it('returns the default scenario when no scenario is requested', async () => {
-    const handler = defineScenarios<string>({ default: 'D', other: 'O' });
+    const handler = defineMock<string>({ default: 'D', other: 'O' });
     expect(await handler(makeReq())).toBe('D');
     expect(console.warn).not.toHaveBeenCalled();
   });
 
   it('returns the named scenario when one is requested and exists', async () => {
-    const handler = defineScenarios<string>({ default: 'D', other: 'O' });
+    const handler = defineMock<string>({ default: 'D', other: 'O' });
     expect(await handler(makeReq({ scenario: 'other' }))).toBe('O');
     expect(console.warn).not.toHaveBeenCalled();
   });
 
   it('falls back to default and warns when the requested scenario is unknown', async () => {
-    const handler = defineScenarios<string>({ default: 'D', error: 'E' });
+    const handler = defineMock<string>({ default: 'D', error: 'E' });
     const result = await handler(
       makeReq({
         scenario: 'missing',
@@ -63,7 +63,7 @@ describe('defineScenarios', () => {
   });
 
   it('invokes a function variant with the request context', async () => {
-    const handler = defineScenarios<{ id: string }>({
+    const handler = defineMock<{ id: string }>({
       default: ({ params }) => ({ id: params.id ?? '' }),
     });
     const result = await handler(makeReq({ params: { id: '42' } }));
@@ -72,7 +72,7 @@ describe('defineScenarios', () => {
 
   it('returns rich response variants verbatim', async () => {
     const rich = { status: 418, body: { reason: 'teapot' } };
-    const handler = defineScenarios<unknown>({
+    const handler = defineMock<unknown>({
       default: 'ok',
       teapot: rich,
     });
@@ -80,7 +80,7 @@ describe('defineScenarios', () => {
   });
 
   it('returns array variants as the plain body', async () => {
-    const handler = defineScenarios({
+    const handler = defineMock({
       default: [1, 2, 3],
       empty: [],
     });
@@ -88,7 +88,7 @@ describe('defineScenarios', () => {
   });
 
   it('handles async function variants', async () => {
-    const handler = defineScenarios<string>({
+    const handler = defineMock<string>({
       default: 'static',
       computed: async () => 'computed',
     });
@@ -96,7 +96,7 @@ describe('defineScenarios', () => {
   });
 
   it('falls back to default when scenario is the empty string', async () => {
-    const handler = defineScenarios<string>({ default: 'D' });
+    const handler = defineMock<string>({ default: 'D' });
     expect(await handler(makeReq({ scenario: '' }))).toBe('D');
     // Empty string is falsy; treated like "no scenario requested"
     expect(console.warn).not.toHaveBeenCalled();
