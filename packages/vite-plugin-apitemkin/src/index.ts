@@ -3,15 +3,28 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { scanMocks, type MockRoute } from './scanner.js';
 import { matchRoute } from './matcher.js';
+import { invokeHandler, sleep, type ApitemkinHandler } from './runtime.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
   mocksDir?: string;
   urlPrefix?: string;
+  /**
+   * Global artificial delay (in milliseconds) before sending each response.
+   * Simulates real-world network latency during local development.
+   * Per-route override is available via `RichResponse.delay` from a code mock.
+   * Default: 150.
+   */
+  delay?: number;
 }
 
 export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
-  const { enabled = true, mocksDir = 'mocks', urlPrefix = '/api' } = options;
+  const {
+    enabled = true,
+    mocksDir = 'mocks',
+    urlPrefix = '/api',
+    delay: globalDelay = 150,
+  } = options;
 
   let resolvedMocksDir = '';
   let routes: MockRoute[] = [];
@@ -56,12 +69,46 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
         const match = matchRoute(routes, req.method, req.url, urlPrefix);
         if (match) {
           try {
-            const body = await readFile(match.route.filePath, 'utf8');
-            res.setHeader('Content-Type', 'application/json');
-            res.statusCode = 200;
-            res.end(body);
+            if (match.route.kind === 'json') {
+              const body = await readFile(match.route.filePath, 'utf8');
+              if (globalDelay > 0) await sleep(globalDelay);
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 200;
+              res.end(body);
+            } else {
+              const result = await invokeHandler(
+                server,
+                match.route,
+                req,
+                match.params,
+              );
+              const effectiveDelay = result.delay ?? globalDelay;
+              if (effectiveDelay > 0) await sleep(effectiveDelay);
+              for (const [k, v] of Object.entries(result.headers)) {
+                res.setHeader(k, v);
+              }
+              res.statusCode = result.status;
+              const hasContentType = res.getHeader('content-type') !== undefined;
+              let payload: string | Buffer;
+              if (typeof result.body === 'string') {
+                if (!hasContentType) {
+                  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                }
+                payload = result.body;
+              } else if (Buffer.isBuffer(result.body)) {
+                payload = result.body;
+              } else {
+                if (!hasContentType) {
+                  res.setHeader('Content-Type', 'application/json');
+                }
+                payload = JSON.stringify(result.body) ?? '';
+              }
+              res.end(payload);
+            }
           } catch (err) {
-            next(err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: (err as Error).message }));
           }
           return;
         }
@@ -96,6 +143,32 @@ function isInsideMocks(file: string, mocksDir: string): boolean {
 
 export { apitemkin };
 export { scanMocks } from './scanner.js';
-export type { HttpMethod, MockRoute, PathSegment } from './scanner.js';
+export type {
+  HttpMethod,
+  MockRoute,
+  MockRouteKind,
+  PathSegment,
+} from './scanner.js';
 export { matchRoute } from './matcher.js';
 export type { MatchResult } from './matcher.js';
+export type {
+  ApitemkinHandler,
+  ApitemkinRequest,
+  RichResponse,
+} from './runtime.js';
+
+/**
+ * Identity helper that gives TypeScript users full type inference on a mock
+ * handler's response and request shape. Wrapping is optional but recommended.
+ *
+ * @example
+ * export default defineMock<User>(({ params }) => ({
+ *   id: Number(params.id),
+ *   name: 'Ada',
+ * }));
+ */
+export function defineMock<TBody = unknown>(
+  handler: ApitemkinHandler<TBody>,
+): ApitemkinHandler<TBody> {
+  return handler;
+}

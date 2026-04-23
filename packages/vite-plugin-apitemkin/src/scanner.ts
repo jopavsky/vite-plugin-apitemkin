@@ -14,11 +14,14 @@ export type PathSegment =
   | { kind: 'literal'; value: string }
   | { kind: 'param'; name: string };
 
+export type MockRouteKind = 'json' | 'code';
+
 export interface MockRoute {
   method: HttpMethod;
   urlPattern: string;
   segments: PathSegment[];
   filePath: string;
+  kind: MockRouteKind;
 }
 
 const KNOWN_METHODS: ReadonlySet<string> = new Set([
@@ -31,6 +34,20 @@ const KNOWN_METHODS: ReadonlySet<string> = new Set([
   'options',
 ]);
 
+const KNOWN_EXTENSIONS = ['.json', '.ts', '.js', '.mjs'] as const;
+type KnownExtension = (typeof KNOWN_EXTENSIONS)[number];
+
+function findExtension(filename: string): KnownExtension | undefined {
+  for (const ext of KNOWN_EXTENSIONS) {
+    if (filename.endsWith(ext)) return ext;
+  }
+  return undefined;
+}
+
+function kindForExtension(ext: KnownExtension): MockRouteKind {
+  return ext === '.json' ? 'json' : 'code';
+}
+
 export async function scanMocks(
   rootDir: string,
   urlPrefix = '/api',
@@ -41,17 +58,23 @@ export async function scanMocks(
   const routes: MockRoute[] = [];
   const seen = new Map<string, string>();
 
-  for await (const filePath of walkJson(rootDir)) {
-    const { method, urlPattern, segments } = buildRoute(filePath, rootDir, prefix);
+  for await (const filePath of walkMocks(rootDir)) {
+    const { method, urlPattern, segments, kind } = buildRoute(filePath, rootDir, prefix);
     const key = `${method} ${urlPattern}`;
     const existing = seen.get(key);
     if (existing) {
+      const existingIsJson = existing.endsWith('.json');
+      const newIsJson = filePath.endsWith('.json');
+      const crossKindHint =
+        existingIsJson !== newIsJson
+          ? '\n  Pick one form per route: a JSON file OR a code file, not both.'
+          : '';
       throw new Error(
-        `apitemkin: route conflict on ${method} ${urlPattern}\n  - ${existing}\n  - ${filePath}`,
+        `apitemkin: route conflict on ${method} ${urlPattern}\n  - ${existing}\n  - ${filePath}${crossKindHint}`,
       );
     }
     seen.set(key, filePath);
-    routes.push({ method, urlPattern, segments, filePath });
+    routes.push({ method, urlPattern, segments, filePath, kind });
   }
 
   routes.sort((a, b) => a.filePath.localeCompare(b.filePath));
@@ -73,8 +96,10 @@ async function detectAmbiguity(dir: string): Promise<void> {
   for (const entry of entries) {
     if (entry.isDirectory()) {
       folderNames.add(entry.name);
-    } else if (entry.isFile() && entry.name.endsWith('.json')) {
-      const noExt = entry.name.slice(0, -'.json'.length);
+    } else if (entry.isFile()) {
+      const ext = findExtension(entry.name);
+      if (!ext) continue;
+      const noExt = entry.name.slice(0, -ext.length);
       const { name } = parseFilename(noExt);
       if (name !== 'index') {
         filesByBasename.set(name, entry.name);
@@ -105,7 +130,7 @@ async function detectAmbiguity(dir: string): Promise<void> {
   }
 }
 
-async function* walkJson(dir: string): AsyncIterable<string> {
+async function* walkMocks(dir: string): AsyncIterable<string> {
   let entries;
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -116,8 +141,8 @@ async function* walkJson(dir: string): AsyncIterable<string> {
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      yield* walkJson(full);
-    } else if (entry.isFile() && entry.name.endsWith('.json')) {
+      yield* walkMocks(full);
+    } else if (entry.isFile() && findExtension(entry.name)) {
       yield full;
     }
   }
@@ -127,17 +152,24 @@ function buildRoute(
   filePath: string,
   rootDir: string,
   prefix: string,
-): { method: HttpMethod; urlPattern: string; segments: PathSegment[] } {
+): {
+  method: HttpMethod;
+  urlPattern: string;
+  segments: PathSegment[];
+  kind: MockRouteKind;
+} {
   const rel = relative(rootDir, filePath);
   const parts = rel.split(sep);
   const filename = parts[parts.length - 1]!;
   const dirParts = parts.slice(0, -1);
-  const basename = filename.replace(/\.json$/, '');
+  const ext = findExtension(filename)!;
+  const basename = filename.slice(0, -ext.length);
+  const kind = kindForExtension(ext);
   const { name, method } = parseFilename(basename);
   const allParts = name === 'index' ? dirParts : [...dirParts, name];
   const segments = allParts.map(parseSegment);
   const urlPattern = buildUrlPattern(prefix, segments);
-  return { method, urlPattern, segments };
+  return { method, urlPattern, segments, kind };
 }
 
 function parseFilename(basename: string): { name: string; method: HttpMethod } {
