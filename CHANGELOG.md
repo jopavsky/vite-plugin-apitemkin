@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-04-23
+
+First stable release. API is now frozen under SemVer: breaking changes
+require a major bump; new features land as minors; bug fixes as patches.
+
+### Changed
+- **Vite peer dependency narrowed to `^7.0.0`.** Previously `^5 || ^6 || ^7`,
+  but only Vite 7 was actually covered by the test suite. Narrowing to the
+  version we verify makes the compatibility claim honest. Projects on Vite
+  5 or 6 should upgrade Vite (the plugin is dev-only, so the upgrade cost
+  is minimal).
+- **Node engine bumped to `>=20`.** Node 18 reaches end-of-life in April
+  2025; Node 20 is the current LTS. Vite 7 itself requires `>=20`, so this
+  matches the peer dep stack.
+
+### Note
+- No changes to the public API surface. Everything exported in 0.3.0
+  remains exported in 1.0.0 with identical shape. The only breakage is
+  the peer-dep range — users already on Vite 7 + Node 20 upgrade with no
+  code changes.
+
 ## [0.3.0] — 2026-04-23
 
 ### Added
@@ -80,7 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PathSegment`, `HttpMethod`, `MatchResult`.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jopavsky/vite-plugin-apitemkin/releases/tag/v0.1.0

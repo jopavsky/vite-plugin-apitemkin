@@ -2,13 +2,15 @@
 
 Plug-and-play mock API plugin for Vite. The folder structure is the API spec.
 
+📚 **Full documentation:** [github.com/jopavsky/vite-plugin-apitemkin](https://github.com/jopavsky/vite-plugin-apitemkin#readme)
+
 ## Install
 
 ```sh
 npm i -D vite-plugin-apitemkin
 ```
 
-Peer dependency: `vite ^5 || ^6 || ^7`. Node `>=18`.
+Peer dependency: `vite ^7`. Node `>=20`.
 
 ## Usage
 
@@ -57,7 +59,7 @@ export default defineMock({
 
 Switch with `?apitemkin_scenario=error`. Discovery at `GET /_apitemkin/scenarios`.
 
-See the project repository for the full folder convention, options, and examples.
+See the [GitHub README](https://github.com/jopavsky/vite-plugin-apitemkin#readme) for the full folder convention, scenarios, options table, and roadmap.
 
 ## License
 

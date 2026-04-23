@@ -2,9 +2,9 @@
 
 Plug-and-play mock API plugin for Vite. The Potemkin village for your API.
 
-> **Status: pre-1.0.** v0.1 is feature-complete but not yet published. Expect API changes before 1.0.
+> **v1.0** — stable release. API is frozen under [SemVer](https://semver.org/); breaking changes require a major bump.
 
-`apitemkin` serves mock JSON responses from a folder structure. Drop a JSON file in `mocks/`, fetch its URL, get the response. No config-file routes, no inline DSL — **the file system is the API spec**.
+`apitemkin` serves mock responses from a folder structure. Drop a file in `mocks/`, fetch its URL, get the response. No config-file routes, no inline DSL — **the file system is the API spec**.
 
 ## Install
 
@@ -12,7 +12,7 @@ Plug-and-play mock API plugin for Vite. The Potemkin village for your API.
 npm i -D vite-plugin-apitemkin
 ```
 
-Peer dependency: `vite ^5 || ^6 || ^7`. Node `>=18`.
+Peer dependency: `vite ^7`. Node `>=20`.
 
 ## Quick start
 
@@ -21,9 +21,7 @@ Peer dependency: `vite ^5 || ^6 || ^7`. Node `>=18`.
 import { defineConfig } from 'vite';
 import apitemkin from 'vite-plugin-apitemkin';
 
-export default defineConfig({
-  plugins: [apitemkin()],
-});
+export default defineConfig({ plugins: [apitemkin()] });
 ```
 
 Create a `mocks/` directory next to your `vite.config.ts`:
@@ -37,50 +35,28 @@ mocks/
     └── [id].json
 ```
 
-Fetch the routes:
+Fetch:
 
 ```sh
-curl http://localhost:5173/api/healthcheck
-# → { "status": "ok" }
-
-curl http://localhost:5173/api/users
-# → [{ "id": 1, "name": "Ada" }, ...]
-
-curl -X POST http://localhost:5173/api/users
-# → { "status": "created" }
-
-curl http://localhost:5173/api/users/42
-# → matched via [id].json
+curl http://localhost:5173/api/healthcheck          # → mocks/healthcheck.json
+curl http://localhost:5173/api/users                # → mocks/users/index.json
+curl -X POST http://localhost:5173/api/users        # → mocks/users/index.post.json
+curl http://localhost:5173/api/users/42             # → mocks/users/[id].json
 ```
 
-Edit, add, or delete any JSON file — changes apply without restarting the dev server.
+Edit, add, or delete any file — changes apply without restarting the dev server.
 
 ## Folder convention
 
-The directory tree maps to URLs. Six rules:
+Five rules:
 
-1. **File path → URL path.** `mocks/users.json` serves `GET /api/users`. `mocks/users/posts.json` serves `GET /api/users/posts`.
-2. **Filename suffix encodes HTTP method.** `users.post.json` = POST, `users.delete.json` = DELETE, `users.patch.json` = PATCH, etc. Suffix omitted means GET. So `users.json` ≡ `users.get.json`.
-3. **`[name]` segments are dynamic params.** They work in folder names (`users/[id]/...`) and file basenames (`[id].json`). `[id]` becomes `:id` in the URL pattern.
-4. **`index.{method}?.json` inside a folder uses the folder's name as the URL segment.** So `users/index.json` → `/api/users`, alongside `users/[id].json` → `/api/users/:id`.
-5. **A file `X.json` and a folder `X/` cannot be siblings.** The plugin refuses to start and tells you exactly which file to move.
-6. **JSON only at v0.1.** File contents are served verbatim with `Content-Type: application/json`. Dynamic JS/TS callback files arrive in v0.2.
+1. **File path → URL path.** `mocks/users.json` serves `GET /api/users`; `mocks/users/posts.json` serves `GET /api/users/posts`.
+2. **Filename suffix encodes method.** `users.post.json` = POST, `users.delete.ts` = DELETE, etc. Suffix omitted means GET.
+3. **`[name]` segments are dynamic params.** Both in folders (`users/[id]/...`) and file basenames (`[id].json`). `[id]` becomes `:id` in the URL pattern.
+4. **`index.{method}?.<ext>` inside a folder uses the folder's name as the URL segment.** `users/index.json` → `/api/users`, alongside `users/[id].json` → `/api/users/:id`.
+5. **Specificity: literal segments beat params.** If both `mocks/users/me.json` and `mocks/users/[id].json` exist, `GET /api/users/me` resolves to the literal route; `GET /api/users/42` resolves to the param route.
 
-### Flat form vs folder form
-
-```
-# Trivial endpoint with no children — flat file:
-mocks/healthcheck.json              → GET /api/healthcheck
-
-# Resource with sub-routes — folder + index files:
-mocks/users/
-├── index.json                      → GET    /api/users
-├── index.post.json                 → POST   /api/users
-├── [id].json                       → GET    /api/users/:id
-└── [id].delete.json                → DELETE /api/users/:id
-```
-
-If you start flat with `mocks/users.json` and later add `mocks/users/[id].json`, the scanner refuses to start with a guided message:
+A file `X.<ext>` and a folder named `X/` cannot be siblings — the scanner errors at startup with the exact `mv` command to consolidate:
 
 ```
 apitemkin: ambiguous mock layout in mocks/
@@ -88,15 +64,10 @@ apitemkin: ambiguous mock layout in mocks/
   - mocks/users.json
   - mocks/users/
 
-A file and a folder share the name "users", so it's unclear which one
-owns the same URL prefix. Move the file into the folder as an index file:
+Move the file into the folder as an index file:
 
     mv "mocks/users.json" "mocks/users/index.json"
 ```
-
-### Routing specificity
-
-When multiple routes could match, **literal segments beat params** at the same position. So if both `mocks/users/me.json` and `mocks/users/[id].json` exist, `GET /api/users/me` resolves to the literal route; `GET /api/users/42` resolves to the param route.
 
 ## Dynamic mocks
 
@@ -116,162 +87,74 @@ export default defineMock<User>(({ params, query }) => ({
 
 The handler receives a typed request context — `method`, `url`, `params`, `query`, `body`, `headers` — and returns either:
 
-- **The response body** — sent as `application/json` with status `200`.
-- **A rich response** `{ status?, headers?, body }` — when `status`, `headers`, or both are present. Use this for non-200 responses, custom headers, or non-JSON bodies.
+- **A response body** — sent as `application/json`, status `200`.
+- **A rich response** `{ status?, headers?, body, delay? }` — when any of `status`, `headers`, or `delay` is present. Use this for non-200 responses, custom headers, per-route delay overrides.
 
-Async handlers are supported. If the handler throws, the response is `500` JSON `{ error: <message> }`.
-
-```ts
-// mocks/teapot.ts — custom status + body
-export default defineMock(() => ({
-  status: 418,
-  body: { reason: "I'm a teapot" },
-}));
-
-// mocks/echo.post.ts — JSON body parsed automatically when Content-Type matches
-export default defineMock(({ body }) => ({ received: body }));
-
-// mocks/slow.ts — override the global delay for a specific endpoint
-export default defineMock(() => ({
-  delay: 2000,
-  body: { took: 'a while' },
-}));
-```
+Async handlers are supported. Thrown errors become `500 { error }` JSON.
 
 ### File-form rules
 
-- **Filename suffix and `[id]` params work the same as for JSON.** `users.post.ts` = POST handler; `users/[id].ts` captures `:id`.
-- **`index.{method}?.ts` inside a folder** uses the folder name as the URL segment, exactly like the JSON case.
-- **Code/JSON collision is an error.** A `users.json` and a `users.ts` mapping to the same URL+method causes a startup error with both file paths. Pick one form per route.
-- **Body parsing is JSON-only.** When `Content-Type: application/json`, `req.body` is the parsed value. Other content types leave `body` as `undefined`. Form, multipart, and binary parsing are deferred.
-- **String returns become `text/plain`; `Buffer` returns are sent verbatim;** anything else is `JSON.stringify`'d. Override `Content-Type` via the rich-response `headers` field.
+- Filename suffix and `[id]` params work the same as for JSON.
+- `index.{method}?.ts` inside a folder uses the folder name as the URL segment.
+- A `.json` and a code file for the same URL+method is an error — pick one.
+- Body parsing is JSON-only (Content-Type `application/json`); other types leave `body` as `undefined`.
+- String returns become `text/plain`; `Buffer` returns are sent as-is; everything else is `JSON.stringify`'d. Override via rich-response `headers`.
 
-### TypeScript
-
-`defineMock<T>(handler)` is identity at runtime; its purpose is type inference on the handler's response. Without it, you can annotate manually:
-
-```ts
-import type { ApitemkinHandler } from 'vite-plugin-apitemkin';
-
-const handler: ApitemkinHandler<User> = (req) => ({ id: 1, name: 'Ada' });
-export default handler;
-```
+`defineMock<T>(fn)` is identity at runtime — purely a type-inference helper. Without it, annotate manually with the exported `ApitemkinHandler<T>` type.
 
 ## Scenarios
 
-A single endpoint can expose multiple named response variants — useful for previewing error states, empty states, slow responses, and the like without editing the mock between requests. Pass a scenarios map to `defineMock` instead of a function:
+A single endpoint can expose multiple named response variants. Pass a scenarios map to `defineMock` instead of a function:
 
 ```ts
 // mocks/orders/index.ts
 import { defineMock } from 'vite-plugin-apitemkin';
 
 export default defineMock<Order[]>({
-  default: [
-    { id: 1, item: 'Lovelace pen', total: 12.5 },
-    { id: 2, item: 'Linux mug', total: 9.0 },
-  ],
-  empty: [],
-  error: { status: 500, body: { error: 'Order service unavailable' } as any },
-  slow:  { delay: 2000, body: [{ id: 1, item: 'eventually arrives', total: 1 }] },
+  default: [{ id: 1, item: 'Lovelace pen', total: 12.5 }],
+  empty:   [],
+  error:   { status: 500, body: { error: 'Order service unavailable' } as any },
+  slow:    { delay: 2000, body: [{ id: 1, item: 'eventually arrives', total: 1 }] },
   computed: ({ query }) => [{ id: Number(query.page) || 1, item: 'computed', total: 0 }],
 });
 ```
 
-`defineMock` accepts either a single handler function (the v0.2 form) **or** a scenarios map. When you pass a map, each variant value can be a plain body, a `RichResponse` (`{ status?, headers?, body, delay? }`), or a handler function — same normalization rules as the function form. The `default` key is required; other names are user-defined.
+Each variant can be a plain body, a `RichResponse`, or a handler function — same normalization rules as the function form. The `default` key is required.
 
-### Activating a scenario
-
-Append `?apitemkin_scenario=<name>` to the request URL:
+Activate per request with `?apitemkin_scenario=<name>`:
 
 ```sh
-curl http://localhost:5173/api/orders                                   # default
-curl http://localhost:5173/api/orders?apitemkin_scenario=empty          # empty
-curl http://localhost:5173/api/orders?apitemkin_scenario=error          # 500
-curl http://localhost:5173/api/orders?apitemkin_scenario=slow           # 2s delay
+curl 'http://localhost:5173/api/orders?apitemkin_scenario=error'   # → 500 JSON
 ```
 
-The query parameter is consumed by the plugin and stripped from `req.query` before any handler sees it (so it doesn't pollute application-level params). Scenarios are an internal concern of the `defineMock(scenariosMap)` overload — plain handler-form mocks stay unaware of them.
-
-### Unknown scenarios
-
-Requesting a scenario that isn't defined silently falls back to `default` and logs a console warning in the dev server:
-
-```
-apitemkin: scenario 'foo' not defined for GET /api/orders, falling back to default
-```
-
-This keeps demos and quick toggles forgiving — typos don't break the app.
-
-### Discovery
-
-Hit `GET /_apitemkin/scenarios` to see every route and its available scenarios:
-
-```sh
-curl http://localhost:5173/_apitemkin/scenarios
-```
-
-```json
-[
-  { "method": "GET", "url": "/api/users",   "kind": "json", "scenarios": [] },
-  { "method": "GET", "url": "/api/orders",  "kind": "code", "scenarios": ["default", "empty", "error", "slow", "computed"] },
-  { "method": "GET", "url": "/api/whoami",  "kind": "code", "scenarios": [] }
-]
-```
-
-JSON routes always show empty scenarios — only `defineMock(scenariosMap)` (or any handler that attaches `__apitemkin_scenarios`) appears with names.
-
-### JSON routes don't have scenarios
-
-JSON files stay as fixed responses. If you want variants on a route currently backed by a `.json` file, convert it to a `.ts` file using `defineMock` with a scenarios map. Move the existing JSON content under the `default` key.
+An unknown scenario silently falls back to `default` and logs a console warning. Discovery: `GET /_apitemkin/scenarios` returns a JSON list of every route with its kind (`'json' | 'code'`) and available scenario names. JSON files don't support scenarios — convert to `.ts` if you need variants.
 
 ## Options
 
-| Option      | Type      | Default   | Description                                                                       |
-| ----------- | --------- | --------- | --------------------------------------------------------------------------------- |
-| `enabled`   | `boolean` | `true`    | Toggle the plugin off without removing it from `vite.config.ts`.                  |
-| `mocksDir`  | `string`  | `'mocks'` | Directory to scan for mock files. Resolved relative to the Vite root.             |
-| `urlPrefix` | `string`  | `'/api'`  | URL prefix to mount mocks under. Pass `''` to mount at the host root.             |
-| `delay`     | `number`  | `150`     | Global artificial delay in ms before each response — simulates network latency. Pass `0` to disable. Code mocks can override per-route via `RichResponse.delay`. |
+| Option      | Type      | Default   | Description                                                              |
+| ----------- | --------- | --------- | ------------------------------------------------------------------------ |
+| `enabled`   | `boolean` | `true`    | Toggle the plugin off without removing it from `vite.config.ts`.         |
+| `mocksDir`  | `string`  | `'mocks'` | Directory to scan for mock files. Resolved relative to the Vite root.    |
+| `urlPrefix` | `string`  | `'/api'`  | URL prefix to mount mocks under. Pass `''` for the host root.            |
+| `delay`     | `number`  | `150`     | Global artificial delay in ms before each response. Pass `0` to disable. Code mocks can override per-route via `RichResponse.delay`. |
 
-### Dev-only by construction
-
-The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build`. There is no `apply` option, no opt-in for build-time activation, and no chance of accidentally shipping mocks to production.
-
-### The plugin owns the configured prefix
-
-Any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON response, **not** Vite's SPA fallback HTML. This means consumers of `/api/*` always get JSON-shaped responses, never a misleading 200 with `<!doctype html>` for an unmatched route.
-
-## Why another mock plugin?
-
-Existing options each have rough edges: broken HMR when mock files change, file-based-routing boilerplate, fuzzy dev/prod story, weak typing, bloated dependencies. `apitemkin` aims to be the opposite:
-
-- **Folder-based, no inline route declarations.** The directory tree is the spec.
-- **Real HMR for mock changes.** Add, edit, or delete files — no restart.
-- **Dev-only by construction.** Production builds never see the plugin.
-- **TypeScript native.** Authored in TS, ships ESM + `.d.ts`.
-- **Zero runtime dependencies.** Built on Vite's middleware and Node built-ins.
-- **Deliberately narrow.** HTTP + JSON. No WebSocket, no SSE, no GraphQL, no OpenAPI ingestion.
+The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build`. Any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON response (not Vite's SPA HTML fallback), so API consumers always get JSON.
 
 ## Roadmap
 
-| Version  | Status               | Theme                                                  |
-| -------- | -------------------- | ------------------------------------------------------ |
-| `0.0.x`  | done                 | Scaffolding (monorepo + TS + tsdown + playground)      |
-| `0.1.0`  | shipped              | Folder-based JSON mocks with HMR                       |
-| `0.2.0`  | shipped              | Dynamic JS/TS callback responses (stateful, computed)  |
-| `0.3.0`  | in branch            | Scenarios — multiple variants per route + discovery    |
-| `0.4.0`  | next                 | Devtools overlay UI for scenario switching             |
-| `1.0.0`  | planned              | API freeze, semver guarantees                          |
-| post-1.0 | maybe                | WebSocket and SSE support, if there's real demand      |
+| Version  | Status    | Theme                                                    |
+| -------- | --------- | -------------------------------------------------------- |
+| `1.1.0`  | post-1.0  | Devtools overlay UI for scenario switching               |
+| post-1.0 | maybe     | Catch-all params (`[...slug]`); WebSocket/SSE support    |
 
-See [docs/development-plan.md](./docs/development-plan.md) for the full plan.
+See [CHANGELOG.md](./CHANGELOG.md) for shipped release notes.
 
 ## Repository layout
 
-This is a monorepo using npm workspaces:
+npm workspaces monorepo:
 
-- [`packages/vite-plugin-apitemkin/`](./packages/vite-plugin-apitemkin/) — the publishable plugin.
-- [`packages/playground/`](./packages/playground/) — a Vite app used for live development and as the executable example of the folder convention.
+- `packages/vite-plugin-apitemkin/` — the publishable plugin.
+- `packages/playground/` — a Vite app used for live development and as the executable example of the folder convention.
 
 See [DEVELOPMENT.md](./DEVELOPMENT.md) for contributor setup.
 
