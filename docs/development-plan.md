@@ -121,12 +121,9 @@ export default defineMock({
 
 Why this shape over filename conventions: JSON files stay simple (no new grammar to learn); all variants for a route co-locate in one file; the unified `defineMock` API means there's only one helper to learn for both single handlers and multi-variant maps.
 
-## 8. v0.4 — Devtools overlay (next)
+## 8. Out of scope (v1.0 and earlier)
 
-A small browser-injected UI to toggle scenarios visually, removing the need to manually edit URLs or fetch wrappers during demos and bug-repros. Reads from the v0.3 discovery endpoint to populate the menu; writes the active scenario to a cookie or localStorage; reads it on each request via the existing query-param plumbing (or a parallel cookie-extraction path).
-
-## 9. Out of scope (v1.0 and earlier)
-
+- **Devtools overlay.** A browser-injected UI to toggle scenarios visually, populated from the `/_apitemkin/scenarios` endpoint. Genuinely useful but deferred until after the API is stable — building UI on top of a still-moving API is wasteful. Slated as the first post-1.0 improvement.
 - WebSocket and SSE streaming.
 - OpenAPI ingestion.
 - GraphQL.
@@ -135,7 +132,7 @@ A small browser-injected UI to toggle scenarios visually, removing the need to m
 
 These may be reconsidered post-v1.0 if there's real demand. They are deliberate omissions, not oversights.
 
-## 10. Milestones
+## 9. Milestones
 
 | Version | Status | Theme |
 | --- | --- | --- |
@@ -143,12 +140,12 @@ These may be reconsidered post-v1.0 if there's real demand. They are deliberate 
 | `0.0.2` | done | Restructure: monorepo + TS + tsdown + playground |
 | `0.1.0` | shipped | Folder-based JSON mocks with HMR |
 | `0.2.0` | shipped | Dynamic JS/TS callback responses with `defineMock` |
-| `0.3.0` | in branch | Scenarios via `defineMock(scenariosMap)` overload + discovery endpoint |
-| `0.4.0` | next | Devtools overlay UI for scenario switching |
-| `1.0.0` | planned | API freeze, semver guarantees, full README/recipes |
+| `0.3.0` | shipped | Scenarios via `defineMock(scenariosMap)` overload + discovery endpoint |
+| `1.0.0` | next | API freeze, semver guarantees, full README/recipes |
+| `1.1.0` | post-1.0 | Devtools overlay UI for scenario switching (first post-1.0 improvement) |
 | post-1.0 | maybe | WebSocket and SSE support, if demand materializes |
 
-## 11. Open questions
+## 10. Open questions
 
 - **Catch-all convention.** `[...slug].get.json` (Next-style)?
 - **npm package name.** `vite-plugin-apitemkin` (unscoped) or `@opavsky/vite-plugin-apitemkin`?

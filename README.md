@@ -259,9 +259,9 @@ Existing options each have rough edges: broken HMR when mock files change, file-
 | `0.0.x`  | done                 | Scaffolding (monorepo + TS + tsdown + playground)      |
 | `0.1.0`  | shipped              | Folder-based JSON mocks with HMR                       |
 | `0.2.0`  | shipped              | Dynamic JS/TS callback responses (stateful, computed)  |
-| `0.3.0`  | in branch            | Scenarios — multiple variants per route + discovery    |
-| `0.4.0`  | next                 | Devtools overlay UI for scenario switching             |
-| `1.0.0`  | planned              | API freeze, semver guarantees                          |
+| `0.3.0`  | shipped              | Scenarios — multiple variants per route + discovery    |
+| `1.0.0`  | next                 | API freeze, semver guarantees, full docs               |
+| `1.1.0`  | post-1.0             | Devtools overlay UI for scenario switching             |
 | post-1.0 | maybe                | WebSocket and SSE support, if there's real demand      |
 
 See [docs/development-plan.md](./docs/development-plan.md) for the full plan.
