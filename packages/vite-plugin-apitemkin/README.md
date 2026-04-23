@@ -38,12 +38,11 @@ mocks/
 
 ## Current options
 
-| Option    | Type                         | Default | Description                                |
-| --------- | ---------------------------- | ------- | ------------------------------------------ |
-| `enabled` | `boolean`                    | `true`  | Toggle the plugin off without removing it. |
-| `apply`   | `'dev' \| 'build' \| 'both'` | `'dev'` | When the plugin runs. Dev-only by default. |
+| Option    | Type      | Default | Description                                |
+| --------- | --------- | ------- | ------------------------------------------ |
+| `enabled` | `boolean` | `true`  | Toggle the plugin off without removing it. |
 
-`apply` is translated to Vite's `apply` field (`'serve'`, `'build'`, or `undefined`). Pass `'both'` here, not directly to Vite.
+The plugin is dev-only by construction — Vite skips it during `vite build`. There is no opt-in for build-time activation.
 
 ## Why another mock plugin?
 
