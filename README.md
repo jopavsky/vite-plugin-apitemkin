@@ -243,14 +243,23 @@ Any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON respons
 
 ## Why another mock plugin?
 
-Existing options each have rough edges: broken HMR when mock files change, file-based-routing boilerplate, fuzzy dev/prod story, weak typing, bloated dependencies. `apitemkin` aims to be the opposite:
+The space is crowded but every existing option has rough edges:
+
+| Plugin | Notable pain points |
+| --- | --- |
+| `vite-plugin-mock` (vbenjs) | HMR for mock files is unreliable; production-mode regressions; legacy `mockjs` dependency. |
+| `vite-plugin-mock-dev-server` | WebSocket config conflicts with Vite's proxy; awkward shared-state story. |
+| `msw` (Mock Service Worker) | Not Vite-native — requires service-worker plumbing in the browser; overkill for "just mock during dev." |
+| `vite-plugin-fake-server` | Cannot use Node modules in mock files; deployment-to-prod story is unclear. |
+
+`apitemkin` aims to be the opposite of the recurring pain points — HMR breakage, file-routing boilerplate, dev/prod confusion, weak typing, dependency bloat:
 
 - **Folder-based, no inline route declarations.** The directory tree is the spec.
 - **Real HMR for mock changes.** Add, edit, or delete files — no restart.
 - **Dev-only by construction.** Production builds never see the plugin.
 - **TypeScript native.** Authored in TS, ships ESM + `.d.ts`.
 - **Zero runtime dependencies.** Built on Vite's middleware and Node built-ins.
-- **Deliberately narrow.** HTTP + JSON. No WebSocket, no SSE, no GraphQL, no OpenAPI ingestion.
+- **Deliberately narrow.** HTTP + JSON. No WebSocket, no SSE, no GraphQL, no OpenAPI ingestion. Streaming gaps are a *known* deferral — if that's your need, use a different tool.
 
 ## Roadmap
 
@@ -262,9 +271,9 @@ Existing options each have rough edges: broken HMR when mock files change, file-
 | `0.3.0`  | shipped              | Scenarios — multiple variants per route + discovery    |
 | `1.0.0`  | in branch            | API freeze, SemVer guarantees, Vite 7 + Node 20        |
 | `1.1.0`  | post-1.0             | Devtools overlay UI for scenario switching             |
-| post-1.0 | maybe                | WebSocket and SSE support, if there's real demand      |
+| post-1.0 | maybe                | Catch-all params (`[...slug]`); WebSocket/SSE support  |
 
-See [docs/development-plan.md](./docs/development-plan.md) for the full plan.
+See [CHANGELOG.md](./CHANGELOG.md) for shipped release notes.
 
 ## Repository layout
 
