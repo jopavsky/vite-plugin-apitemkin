@@ -3,7 +3,7 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { scanMocks, type MockRoute } from './scanner.js';
 import { matchRoute } from './matcher.js';
-import { invokeHandler } from './runtime.js';
+import { invokeHandler, type ApitemkinHandler } from './runtime.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
@@ -136,3 +136,24 @@ export type {
 } from './scanner.js';
 export { matchRoute } from './matcher.js';
 export type { MatchResult } from './matcher.js';
+export type {
+  ApitemkinHandler,
+  ApitemkinRequest,
+  RichResponse,
+} from './runtime.js';
+
+/**
+ * Identity helper that gives TypeScript users full type inference on a mock
+ * handler's response and request shape. Wrapping is optional but recommended.
+ *
+ * @example
+ * export default defineMock<User>(({ params }) => ({
+ *   id: Number(params.id),
+ *   name: 'Ada',
+ * }));
+ */
+export function defineMock<TBody = unknown>(
+  handler: ApitemkinHandler<TBody>,
+): ApitemkinHandler<TBody> {
+  return handler;
+}
