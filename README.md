@@ -140,25 +140,6 @@ An unknown scenario silently falls back to `default` and logs a console warning.
 
 The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build`. Any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON response (not Vite's SPA HTML fallback), so API consumers always get JSON.
 
-## Why another mock plugin?
-
-Every existing option has rough edges:
-
-| Plugin | Notable pain points |
-| --- | --- |
-| `vite-plugin-mock` (vbenjs) | HMR unreliable; production-mode regressions; legacy `mockjs` dep. |
-| `vite-plugin-mock-dev-server` | WebSocket config conflicts with Vite's proxy; awkward shared state. |
-| `msw` (Mock Service Worker) | Not Vite-native; service-worker plumbing; overkill for dev-only mocking. |
-| `vite-plugin-fake-server` | Can't use Node modules in mock files; deployment story unclear. |
-
-`apitemkin` is the opposite of the recurring pain points:
-
-- Folder-based — the directory tree is the spec.
-- Real HMR — add, edit, delete files, no restart.
-- Dev-only by construction — production builds never see it.
-- TypeScript native, zero runtime dependencies.
-- Deliberately narrow: HTTP + JSON only. No WebSocket, no SSE, no GraphQL, no OpenAPI. If you need those, use a different tool.
-
 ## Roadmap
 
 | Version  | Status    | Theme                                                    |
