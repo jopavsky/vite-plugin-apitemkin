@@ -1,6 +1,6 @@
 {
   "name": "vite-plugin-apitemkin",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "Plug-and-play mock API plugin for Vite. The Potemkin village for your API.",
   "keywords": [
     "vite",
@@ -46,10 +46,11 @@
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/jopavsky/vite-plugin-apitemkin.git",
+    "directory": "packages/vite-plugin-apitemkin"
   },
   "bugs": {
-    "url": ""
+    "url": "https://github.com/jopavsky/vite-plugin-apitemkin/issues"
   },
-  "homepage": ""
+  "homepage": "https://github.com/jopavsky/vite-plugin-apitemkin#readme"
 }
