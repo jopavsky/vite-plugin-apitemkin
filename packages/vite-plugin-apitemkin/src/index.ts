@@ -22,3 +22,5 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
 export { apitemkin };
 export { scanMocks } from './scanner.js';
 export type { HttpMethod, MockRoute, PathSegment } from './scanner.js';
+export { matchRoute } from './matcher.js';
+export type { MatchResult } from './matcher.js';
