@@ -22,6 +22,38 @@ beforeAll(async () => {
   await write('mocks/users/index.json', '[{"id":1},{"id":2}]');
   await write('mocks/users/index.post.json', '{"created":true}');
   await write('mocks/users/[id].json', '{"id":42,"name":"Ada"}');
+
+  // v0.2 — code-file mocks
+  await write(
+    'mocks/whoami.ts',
+    `export default ({ method, headers }: any) => ({ method, ua: headers['user-agent'] ?? null });`,
+  );
+  await write(
+    'mocks/echo.post.ts',
+    `export default async ({ body }: any) => ({ received: body });`,
+  );
+  await write(
+    'mocks/dyn/[id].ts',
+    `export default ({ params, query }: any) => ({ id: Number(params.id), expand: query.expand === 'true' });`,
+  );
+  await write(
+    'mocks/teapot.ts',
+    `export default () => ({ status: 418, body: { reason: "I'm a teapot" } });`,
+  );
+  await write(
+    'mocks/hdr.ts',
+    `export default () => ({ headers: { 'x-custom': 'apitemkin' }, body: { ok: true } });`,
+  );
+  await write('mocks/text.ts', `export default () => 'hello world';`);
+  await write(
+    'mocks/boom.ts',
+    `export default () => { throw new Error('boom'); };`,
+  );
+  await write(
+    'mocks/notdefault.ts',
+    `export const handler = () => ({});`,
+  );
+
   await write(
     'index.html',
     '<!doctype html><html><body><div id="app"></div></body></html>',
@@ -93,5 +125,67 @@ describe('apitemkin integration with Vite dev server', () => {
     const res = await fetch(`${baseUrl}/api/users?page=2&limit=10`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([{ id: 1 }, { id: 2 }]);
+  });
+
+  describe('code-file mocks (v0.2)', () => {
+    it('invokes a TS handler and returns the value as JSON', async () => {
+      const res = await fetch(`${baseUrl}/api/whoami`, {
+        headers: { 'user-agent': 'test-agent' },
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      const body = (await res.json()) as { method: string; ua: string };
+      expect(body.method).toBe('GET');
+      expect(body.ua).toBe('test-agent');
+    });
+
+    it('parses a JSON request body and passes it to the handler', async () => {
+      const res = await fetch(`${baseUrl}/api/echo`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hi: 1 }),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ received: { hi: 1 } });
+    });
+
+    it('captures dynamic params and query for code handlers', async () => {
+      const res = await fetch(`${baseUrl}/api/dyn/42?expand=true`);
+      expect(await res.json()).toEqual({ id: 42, expand: true });
+    });
+
+    it('respects a rich response status code', async () => {
+      const res = await fetch(`${baseUrl}/api/teapot`);
+      expect(res.status).toBe(418);
+      expect(await res.json()).toEqual({ reason: "I'm a teapot" });
+    });
+
+    it('respects rich response custom headers', async () => {
+      const res = await fetch(`${baseUrl}/api/hdr`);
+      expect(res.headers.get('x-custom')).toBe('apitemkin');
+      expect(await res.json()).toEqual({ ok: true });
+    });
+
+    it('returns string handler responses as text/plain', async () => {
+      const res = await fetch(`${baseUrl}/api/text`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('text/plain');
+      expect(await res.text()).toBe('hello world');
+    });
+
+    it('handler that throws returns a 500 JSON envelope', async () => {
+      const res = await fetch(`${baseUrl}/api/boom`);
+      expect(res.status).toBe(500);
+      expect(res.headers.get('content-type')).toContain('application/json');
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toContain('boom');
+    });
+
+    it('module without a default export returns 500 with a guided message', async () => {
+      const res = await fetch(`${baseUrl}/api/notdefault`);
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toMatch(/must default-export a handler function/);
+    });
   });
 });

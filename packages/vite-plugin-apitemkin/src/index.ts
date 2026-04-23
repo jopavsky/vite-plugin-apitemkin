@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { scanMocks, type MockRoute } from './scanner.js';
 import { matchRoute } from './matcher.js';
+import { invokeHandler } from './runtime.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
@@ -56,12 +57,43 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
         const match = matchRoute(routes, req.method, req.url, urlPrefix);
         if (match) {
           try {
-            const body = await readFile(match.route.filePath, 'utf8');
-            res.setHeader('Content-Type', 'application/json');
-            res.statusCode = 200;
-            res.end(body);
+            if (match.route.kind === 'json') {
+              const body = await readFile(match.route.filePath, 'utf8');
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 200;
+              res.end(body);
+            } else {
+              const result = await invokeHandler(
+                server,
+                match.route,
+                req,
+                match.params,
+              );
+              for (const [k, v] of Object.entries(result.headers)) {
+                res.setHeader(k, v);
+              }
+              res.statusCode = result.status;
+              const hasContentType = res.getHeader('content-type') !== undefined;
+              let payload: string | Buffer;
+              if (typeof result.body === 'string') {
+                if (!hasContentType) {
+                  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+                }
+                payload = result.body;
+              } else if (Buffer.isBuffer(result.body)) {
+                payload = result.body;
+              } else {
+                if (!hasContentType) {
+                  res.setHeader('Content-Type', 'application/json');
+                }
+                payload = JSON.stringify(result.body) ?? '';
+              }
+              res.end(payload);
+            }
           } catch (err) {
-            next(err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: (err as Error).message }));
           }
           return;
         }
