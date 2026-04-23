@@ -1,0 +1,55 @@
+{
+  "name": "vite-plugin-apitemkin",
+  "version": "0.0.2",
+  "description": "Plug-and-play mock API plugin for Vite. The Potemkin village for your API.",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "mock",
+    "mock-api",
+    "api",
+    "dev-server",
+    "potemkin",
+    "apitemkin"
+  ],
+  "license": "MIT",
+  "author": "Jan Opavsky <john.opavsky@gmail.com>",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": ""
+  },
+  "homepage": ""
+}
