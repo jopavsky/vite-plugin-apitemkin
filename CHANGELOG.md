@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `defineMock<T>(scenarios)` overload for code mocks with multiple named
+  response variants. Pass a `{ default, [name]: ... }` object instead of
+  a handler function; each variant can be a plain body, a `RichResponse`,
+  or an `ApitemkinHandler` function. The `default` key is required.
+- `?apitemkin_scenario=<name>` query parameter selects the active scenario
+  per request. Consumed entirely by `defineMock(scenariosMap)` and stripped
+  from `req.query`, so plain handler-form mocks never see it.
+- `GET /_apitemkin/scenarios` discovery endpoint returns every route with
+  its `method`, `url`, `kind` (`'json' | 'code'`), and available scenario
+  names. JSON routes always show empty scenarios.
+- New exported types: `ScenarioValue<T>`, `ScenariosMap<T>`, `ScenariosHandler<T>`.
+
+### Changed
+- `defineMock` now accepts either a handler function (existing v0.2 form)
+  or a scenarios map (new). TypeScript overload resolution picks the
+  right return type. There is no separate `defineScenarios` helper; the
+  unified API keeps the surface tight.
+- Unknown scenarios silently fall back to `default` with a console warning
+  (rather than 404'ing) — friendlier for demos and quick toggles.
+
 ## [0.2.0] — 2026-04-23
 
 ### Added

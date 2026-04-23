@@ -19,6 +19,10 @@ const blocks = await Promise.all([
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ hello: 'world' }),
   }),
+  probe('Scenarios — default', '/api/orders'),
+  probe('Scenarios — empty', '/api/orders?apitemkin_scenario=empty'),
+  probe('Scenarios — error (500)', '/api/orders?apitemkin_scenario=error'),
+  probe('Discovery — /_apitemkin/scenarios', '/_apitemkin/scenarios'),
 ]);
 
 out.textContent = blocks.join('\n\n');

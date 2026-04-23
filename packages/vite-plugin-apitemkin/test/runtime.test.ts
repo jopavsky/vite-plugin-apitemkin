@@ -91,6 +91,13 @@ describe('parseQuery', () => {
       q: 'hello world',
     });
   });
+
+  it('treats apitemkin_scenario like any other key (stripping happens upstream)', () => {
+    expect(parseQuery('/api/users?apitemkin_scenario=x&page=1')).toEqual({
+      apitemkin_scenario: 'x',
+      page: '1',
+    });
+  });
 });
 
 describe('isRichResponse', () => {
