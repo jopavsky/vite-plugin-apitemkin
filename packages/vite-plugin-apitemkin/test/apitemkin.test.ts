@@ -16,8 +16,14 @@ describe('apitemkin()', () => {
     expect(apitemkin({ enabled: false }).apply).toBe('serve');
   });
 
-  it('configResolved hook does not throw', () => {
+  it('configResolved hook does not throw on a valid Vite config shape', () => {
     const plugin = apitemkin();
+    const hook = plugin.configResolved;
+    expect(() => (hook as any)?.({ root: '/tmp/whatever' })).not.toThrow();
+  });
+
+  it('configResolved hook is a no-op when disabled', () => {
+    const plugin = apitemkin({ enabled: false });
     const hook = plugin.configResolved;
     expect(() => (hook as any)?.({} as any)).not.toThrow();
   });
