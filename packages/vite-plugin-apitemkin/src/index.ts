@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { scanMocks, type MockRoute } from './scanner.js';
 import { matchRoute } from './matcher.js';
@@ -28,12 +28,27 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       if (!enabled) return;
 
-      try {
-        routes = await scanMocks(resolvedMocksDir, urlPrefix);
-      } catch (err) {
-        server.config.logger.error(`apitemkin: ${(err as Error).message}`);
-        return;
-      }
+      const rescan = async () => {
+        try {
+          routes = await scanMocks(resolvedMocksDir, urlPrefix);
+        } catch (err) {
+          server.config.logger.error(
+            `apitemkin: ${(err as Error).message}`,
+          );
+        }
+      };
+
+      await rescan();
+
+      server.watcher.add(resolvedMocksDir);
+      const handleChange = (file: string) => {
+        if (!file.endsWith('.json')) return;
+        if (!isInsideMocks(file, resolvedMocksDir)) return;
+        rescan();
+      };
+      server.watcher.on('add', handleChange);
+      server.watcher.on('change', handleChange);
+      server.watcher.on('unlink', handleChange);
 
       server.middlewares.use(async (req, res, next) => {
         if (!req.url || !req.method) return next();
@@ -71,6 +86,12 @@ function isUnderPrefix(url: string, prefix: string): boolean {
   const path = url.split('?')[0]!.split('#')[0]!;
   const norm = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
   return path === norm || path.startsWith(norm + '/');
+}
+
+function isInsideMocks(file: string, mocksDir: string): boolean {
+  const abs = isAbsolute(file) ? file : resolve(file);
+  const rel = relative(mocksDir, abs);
+  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
 export { apitemkin };
