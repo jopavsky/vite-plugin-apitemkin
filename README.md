@@ -157,6 +157,82 @@ const handler: ApitemkinHandler<User> = (req) => ({ id: 1, name: 'Ada' });
 export default handler;
 ```
 
+## Scenarios
+
+A single endpoint can expose multiple named response variants — useful for previewing error states, empty states, slow responses, and the like without editing the mock between requests.
+
+```ts
+// mocks/orders/index.ts
+import { defineScenarios } from 'vite-plugin-apitemkin';
+
+export default defineScenarios<Order[]>({
+  default: [
+    { id: 1, item: 'Lovelace pen', total: 12.5 },
+    { id: 2, item: 'Linux mug', total: 9.0 },
+  ],
+  empty: [],
+  error: { status: 500, body: { error: 'Order service unavailable' } as any },
+  slow:  { delay: 2000, body: [{ id: 1, item: 'eventually arrives', total: 1 }] },
+  computed: ({ query }) => [{ id: Number(query.page) || 1, item: 'computed', total: 0 }],
+});
+```
+
+Each variant value can be a plain body, a `RichResponse` (`{ status?, headers?, body, delay? }`), or a handler function — same rules as plain `defineMock`. The `default` key is required; other names are user-defined.
+
+### Activating a scenario
+
+Append `?apitemkin_scenario=<name>` to the request URL:
+
+```sh
+curl http://localhost:5173/api/orders                                   # default
+curl http://localhost:5173/api/orders?apitemkin_scenario=empty          # empty
+curl http://localhost:5173/api/orders?apitemkin_scenario=error          # 500
+curl http://localhost:5173/api/orders?apitemkin_scenario=slow           # 2s delay
+```
+
+The query parameter is consumed by the plugin and stripped from `req.query` before the handler sees it (so it doesn't pollute application-level params).
+
+For plain `defineMock` handlers that want to branch manually, the active scenario is also exposed as `req.scenario`:
+
+```ts
+export default defineMock(({ scenario }) => {
+  if (scenario === 'error') return { status: 500, body: {} };
+  return [{ id: 1 }];
+});
+```
+
+### Unknown scenarios
+
+Requesting a scenario that isn't defined silently falls back to `default` and logs a console warning in the dev server:
+
+```
+apitemkin: scenario 'foo' not defined for GET /api/orders, falling back to default
+```
+
+This keeps demos and quick toggles forgiving — typos don't break the app.
+
+### Discovery
+
+Hit `GET /_apitemkin/scenarios` to see every route and its available scenarios:
+
+```sh
+curl http://localhost:5173/_apitemkin/scenarios
+```
+
+```json
+[
+  { "method": "GET", "url": "/api/users",   "kind": "json", "scenarios": [] },
+  { "method": "GET", "url": "/api/orders",  "kind": "code", "scenarios": ["default", "empty", "error", "slow", "computed"] },
+  { "method": "GET", "url": "/api/whoami",  "kind": "code", "scenarios": [] }
+]
+```
+
+JSON routes always show empty scenarios — only `defineScenarios` (or any handler that attaches `__apitemkin_scenarios`) appears with names.
+
+### JSON routes don't have scenarios
+
+JSON files stay as fixed responses. If you want variants on a route currently backed by a `.json` file, convert it to a `.ts` file using `defineScenarios`. Move the existing JSON content under the `default` key.
+
 ## Options
 
 | Option      | Type      | Default   | Description                                                                       |
@@ -191,8 +267,9 @@ Existing options each have rough edges: broken HMR when mock files change, file-
 | -------- | -------------------- | ------------------------------------------------------ |
 | `0.0.x`  | done                 | Scaffolding (monorepo + TS + tsdown + playground)      |
 | `0.1.0`  | shipped              | Folder-based JSON mocks with HMR                       |
-| `0.2.0`  | in branch            | Dynamic JS/TS callback responses (stateful, computed)  |
-| `0.3.0`  | next                 | Scenarios — multiple variants per route, switch on the fly |
+| `0.2.0`  | shipped              | Dynamic JS/TS callback responses (stateful, computed)  |
+| `0.3.0`  | in branch            | Scenarios — multiple variants per route + discovery    |
+| `0.4.0`  | next                 | Devtools overlay UI for scenario switching             |
 | `1.0.0`  | planned              | API freeze, semver guarantees                          |
 | post-1.0 | maybe                | WebSocket and SSE support, if there's real demand      |
 

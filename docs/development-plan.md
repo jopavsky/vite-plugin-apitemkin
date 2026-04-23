@@ -97,17 +97,36 @@ Same folder convention, but `.ts` / `.js` / `.mjs` files alongside `.json`.
 - `.json` and code files coexist freely; collision on the same URL+method is rejected at scan time with a guided error message.
 - Thrown errors become `500 { error: <message> }` JSON.
 
-## 7. v0.3 — Scenarios (next)
+## 7. v0.3 — Scenarios (shipped)
 
-Multiple response variants for the same endpoint, switchable on the fly. Concrete approach to be designed; candidate patterns:
+Named response variants for code mocks. JSON files stay as fixed responses; scenarios are exclusively a code-mock feature exposed via the `defineScenarios()` helper:
 
-- **Sidecar files with a scenario suffix.** `users.error.json` next to `users.json`. Activate via `?_scenario=error` query param or `X-Apitemkin-Scenario` header. Smallest scope addition.
-- **Scenario overlay tree.** `mocks/_scenarios/<name>/...` mirrors the default tree; files inside override individual paths when the scenario is active. Scales to multi-route scenarios ("the whole API is in maintenance mode"). Larger scope.
-- **Devtools-driven switcher.** Browser overlay (Vite-style) to toggle scenarios visually without touching URLs/headers. Best DX, biggest scope.
+```ts
+import { defineScenarios } from 'vite-plugin-apitemkin';
 
-Pre-v0.3 design pass should pick one (or a hybrid) based on actual demand. v0.2's dynamic handlers already enable this functionality manually via branching in handler code; the v0.3 work is about ergonomics, not capability.
+export default defineScenarios({
+  default: [{ id: 1 }],
+  empty:   [],
+  error:   { status: 500, body: { error: 'oops' } },
+  slow:    { delay: 2000, body: [{ id: 1 }] },
+  computed: ({ params }) => ({ id: Number(params.id) }),
+});
+```
 
-## 8. Out of scope (v1.0 and earlier)
+- Each variant value can be a plain body, a `RichResponse` (`{ status?, headers?, body, delay? }`), or a handler function. Same normalization rules as plain `defineMock`.
+- The `default` key is TS-required; other names are user-defined.
+- Activate per request via `?apitemkin_scenario=<name>`. The query param is consumed by the plugin and stripped from `req.query` before the handler sees it.
+- `req.scenario` is also exposed on `ApitemkinRequest` for plain `defineMock` handlers that want to branch manually.
+- Unknown scenario name → silent fallback to `default` + a `console.warn` from the dev server.
+- Discovery: `GET /_apitemkin/scenarios` returns a JSON list of every route with its kind (`'json' | 'code'`) and available scenario names.
+
+Why this shape over filename conventions: JSON files stay simple (no new grammar to learn); all variants for a route co-locate in one file; `defineScenarios` composes with v0.2's normalization so users learn one mental model.
+
+## 8. v0.4 — Devtools overlay (next)
+
+A small browser-injected UI to toggle scenarios visually, removing the need to manually edit URLs or fetch wrappers during demos and bug-repros. Reads from the v0.3 discovery endpoint to populate the menu; writes the active scenario to a cookie or localStorage; reads it on each request via the existing query-param plumbing (or a parallel cookie-extraction path).
+
+## 9. Out of scope (v1.0 and earlier)
 
 - WebSocket and SSE streaming.
 - OpenAPI ingestion.
@@ -117,19 +136,20 @@ Pre-v0.3 design pass should pick one (or a hybrid) based on actual demand. v0.2'
 
 These may be reconsidered post-v1.0 if there's real demand. They are deliberate omissions, not oversights.
 
-## 9. Milestones
+## 10. Milestones
 
 | Version | Status | Theme |
 | --- | --- | --- |
 | `0.0.1` | done | Scaffold (JS + JSDoc, single package; superseded by 0.0.2) |
 | `0.0.2` | done | Restructure: monorepo + TS + tsdown + playground |
 | `0.1.0` | shipped | Folder-based JSON mocks with HMR |
-| `0.2.0` | in branch | Dynamic JS/TS callback responses with `defineMock` |
-| `0.3.0` | next | Scenarios - multiple variants per route, switchable |
+| `0.2.0` | shipped | Dynamic JS/TS callback responses with `defineMock` |
+| `0.3.0` | in branch | Scenarios via `defineScenarios` + discovery endpoint |
+| `0.4.0` | next | Devtools overlay UI for scenario switching |
 | `1.0.0` | planned | API freeze, semver guarantees, full README/recipes |
 | post-1.0 | maybe | WebSocket and SSE support, if demand materializes |
 
-## 10. Open questions
+## 11. Open questions
 
 - **Catch-all convention.** `[...slug].get.json` (Next-style)?
 - **npm package name.** `vite-plugin-apitemkin` (unscoped) or `@opavsky/vite-plugin-apitemkin`?
