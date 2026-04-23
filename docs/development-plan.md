@@ -115,8 +115,7 @@ export default defineMock({
 
 - Each variant value can be a plain body, a `RichResponse` (`{ status?, headers?, body, delay? }`), or a handler function. Same normalization rules as plain `defineMock`.
 - The `default` key is TS-required; other names are user-defined.
-- Activate per request via `?apitemkin_scenario=<name>`. The query param is consumed by the plugin and stripped from `req.query` before the handler sees it.
-- `req.scenario` is also exposed on `ApitemkinRequest` for plain `defineMock` handlers that want to branch manually.
+- Activate per request via `?apitemkin_scenario=<name>`. The query param is consumed inside `defineMock(scenariosMap)` and stripped from `req.query`, so plain handler-form mocks never see it.
 - Unknown scenario name → silent fallback to `default` + a `console.warn` from the dev server.
 - Discovery: `GET /_apitemkin/scenarios` returns a JSON list of every route with its kind (`'json' | 'code'`) and available scenario names.
 

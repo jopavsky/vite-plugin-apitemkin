@@ -54,9 +54,11 @@ beforeAll(async () => {
     `export const handler = () => ({});`,
   );
 
-  // v0.3 — scenarios. Inline dispatch mimics defineScenarios; the helper
-  // itself is unit-tested in scenarios.test.ts. Inlining keeps the fixture
-  // independent of node_modules resolution from Vite's tmp-dir root.
+  // v0.3 — scenarios. Inline dispatch mimics defineMock(scenariosMap); the
+  // helper itself is unit-tested in scenarios.test.ts. Inlining keeps the
+  // fixture independent of node_modules resolution from Vite's tmp-dir root.
+  // Since req.scenario is no longer exposed, we parse the scenario straight
+  // from req.url.
   await write(
     'mocks/scenario-test/index.ts',
     `const scenarios: Record<string, unknown> = {
@@ -64,7 +66,14 @@ beforeAll(async () => {
   empty: [],
   error: { status: 500, body: { error: 'boom' } },
 };
-const handler = ({ scenario }: any) => {
+function extractScenario(url: string): string | undefined {
+  const q = url.indexOf('?');
+  if (q === -1) return undefined;
+  const params = new URLSearchParams(url.slice(q + 1).split('#')[0]);
+  return params.get('apitemkin_scenario') ?? undefined;
+}
+const handler = ({ url }: any) => {
+  const scenario = extractScenario(url);
   const chosen = scenario && Object.prototype.hasOwnProperty.call(scenarios, scenario)
     ? scenarios[scenario]
     : scenarios.default;
@@ -74,8 +83,8 @@ const handler = ({ scenario }: any) => {
 export default handler;`,
   );
   await write(
-    'mocks/scenario-echo.ts',
-    `export default ({ scenario, query }: any) => ({ scenario, query });`,
+    'mocks/query-echo.ts',
+    `export default ({ query }: any) => ({ query });`,
   );
 
   await write(
@@ -244,23 +253,13 @@ describe('apitemkin integration with Vite dev server', () => {
       expect(await res.json()).toEqual([{ id: 1, name: 'default-name' }]);
     });
 
-    it('exposes req.scenario to plain defineMock handlers and strips it from req.query', async () => {
+    it('strips apitemkin_scenario from req.query for plain handlers', async () => {
       const res = await fetch(
-        `${baseUrl}/api/scenario-echo?apitemkin_scenario=foo&page=1`,
+        `${baseUrl}/api/query-echo?apitemkin_scenario=foo&page=1`,
       );
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ scenario: 'foo', query: { page: '1' } });
-    });
-
-    it('omits req.scenario when no apitemkin_scenario param is passed', async () => {
-      const res = await fetch(`${baseUrl}/api/scenario-echo?page=1`);
-      expect(res.status).toBe(200);
-      const body = (await res.json()) as {
-        scenario?: string;
-        query: Record<string, string>;
-      };
-      expect(body.scenario).toBeUndefined();
-      expect(body.query).toEqual({ page: '1' });
+      // apitemkin_scenario is consumed by the plugin and never reaches the handler
+      expect(await res.json()).toEqual({ query: { page: '1' } });
     });
   });
 

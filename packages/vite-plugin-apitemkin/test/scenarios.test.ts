@@ -40,7 +40,9 @@ describe('defineMock with scenarios object', () => {
 
   it('returns the named scenario when one is requested and exists', async () => {
     const handler = defineMock<string>({ default: 'D', other: 'O' });
-    expect(await handler(makeReq({ scenario: 'other' }))).toBe('O');
+    expect(
+      await handler(makeReq({ url: '/api/test?apitemkin_scenario=other' })),
+    ).toBe('O');
     expect(console.warn).not.toHaveBeenCalled();
   });
 
@@ -48,9 +50,8 @@ describe('defineMock with scenarios object', () => {
     const handler = defineMock<string>({ default: 'D', error: 'E' });
     const result = await handler(
       makeReq({
-        scenario: 'missing',
         method: 'GET',
-        url: '/api/users',
+        url: '/api/users?apitemkin_scenario=missing',
       }),
     );
     expect(result).toBe('D');
@@ -76,7 +77,9 @@ describe('defineMock with scenarios object', () => {
       default: 'ok',
       teapot: rich,
     });
-    expect(await handler(makeReq({ scenario: 'teapot' }))).toBe(rich);
+    expect(
+      await handler(makeReq({ url: '/api/test?apitemkin_scenario=teapot' })),
+    ).toBe(rich);
   });
 
   it('returns array variants as the plain body', async () => {
@@ -84,7 +87,9 @@ describe('defineMock with scenarios object', () => {
       default: [1, 2, 3],
       empty: [],
     });
-    expect(await handler(makeReq({ scenario: 'empty' }))).toEqual([]);
+    expect(
+      await handler(makeReq({ url: '/api/test?apitemkin_scenario=empty' })),
+    ).toEqual([]);
   });
 
   it('handles async function variants', async () => {
@@ -92,12 +97,16 @@ describe('defineMock with scenarios object', () => {
       default: 'static',
       computed: async () => 'computed',
     });
-    expect(await handler(makeReq({ scenario: 'computed' }))).toBe('computed');
+    expect(
+      await handler(makeReq({ url: '/api/test?apitemkin_scenario=computed' })),
+    ).toBe('computed');
   });
 
-  it('falls back to default when scenario is the empty string', async () => {
+  it('falls back to default when apitemkin_scenario is the empty string', async () => {
     const handler = defineMock<string>({ default: 'D' });
-    expect(await handler(makeReq({ scenario: '' }))).toBe('D');
+    expect(
+      await handler(makeReq({ url: '/api/test?apitemkin_scenario=' })),
+    ).toBe('D');
     // Empty string is falsy; treated like "no scenario requested"
     expect(console.warn).not.toHaveBeenCalled();
   });

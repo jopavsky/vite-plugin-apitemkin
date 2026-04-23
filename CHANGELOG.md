@@ -13,9 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a handler function; each variant can be a plain body, a `RichResponse`,
   or an `ApitemkinHandler` function. The `default` key is required.
 - `?apitemkin_scenario=<name>` query parameter selects the active scenario
-  per request. Stripped from `req.query` before the handler sees it.
-- `req.scenario` field on `ApitemkinRequest` so handler-form `defineMock`
-  mocks can also branch on the active scenario directly.
+  per request. Consumed entirely by `defineMock(scenariosMap)` and stripped
+  from `req.query`, so plain handler-form mocks never see it.
 - `GET /_apitemkin/scenarios` discovery endpoint returns every route with
   its `method`, `url`, `kind` (`'json' | 'code'`), and available scenario
   names. JSON routes always show empty scenarios.

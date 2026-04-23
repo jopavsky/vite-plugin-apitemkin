@@ -190,16 +190,7 @@ curl http://localhost:5173/api/orders?apitemkin_scenario=error          # 500
 curl http://localhost:5173/api/orders?apitemkin_scenario=slow           # 2s delay
 ```
 
-The query parameter is consumed by the plugin and stripped from `req.query` before the handler sees it (so it doesn't pollute application-level params).
-
-For plain `defineMock` handlers that want to branch manually, the active scenario is also exposed as `req.scenario`:
-
-```ts
-export default defineMock(({ scenario }) => {
-  if (scenario === 'error') return { status: 500, body: {} };
-  return [{ id: 1 }];
-});
-```
+The query parameter is consumed by the plugin and stripped from `req.query` before any handler sees it (so it doesn't pollute application-level params). Scenarios are an internal concern of the `defineMock(scenariosMap)` overload — plain handler-form mocks stay unaware of them.
 
 ### Unknown scenarios
 

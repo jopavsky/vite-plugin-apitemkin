@@ -183,6 +183,14 @@ function isInsideMocks(file: string, mocksDir: string): boolean {
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
+function extractScenario(url: string): string | undefined {
+  const q = url.indexOf('?');
+  if (q === -1) return undefined;
+  const queryStr = url.slice(q + 1).split('#')[0]!;
+  const params = new URLSearchParams(queryStr);
+  return params.get('apitemkin_scenario') ?? undefined;
+}
+
 export { apitemkin };
 export { scanMocks } from './scanner.js';
 export type {
@@ -245,7 +253,7 @@ export function defineMock<TBody = unknown>(
 
   const scenarios = arg;
   const handler = (async (req: ApitemkinRequest) => {
-    const requested = req.scenario;
+    const requested = extractScenario(req.url);
     let chosen: ScenarioValue<TBody>;
 
     if (
