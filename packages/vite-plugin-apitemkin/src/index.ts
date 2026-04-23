@@ -156,6 +156,12 @@ export type {
   ApitemkinRequest,
   RichResponse,
 } from './runtime.js';
+export { defineScenarios } from './scenarios.js';
+export type {
+  ScenarioValue,
+  ScenariosMap,
+  ScenariosHandler,
+} from './scenarios.js';
 
 /**
  * Identity helper that gives TypeScript users full type inference on a mock

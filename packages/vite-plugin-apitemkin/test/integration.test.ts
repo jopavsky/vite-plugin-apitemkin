@@ -54,6 +54,30 @@ beforeAll(async () => {
     `export const handler = () => ({});`,
   );
 
+  // v0.3 — scenarios. Inline dispatch mimics defineScenarios; the helper
+  // itself is unit-tested in scenarios.test.ts. Inlining keeps the fixture
+  // independent of node_modules resolution from Vite's tmp-dir root.
+  await write(
+    'mocks/scenario-test/index.ts',
+    `const scenarios: Record<string, unknown> = {
+  default: [{ id: 1, name: 'default-name' }],
+  empty: [],
+  error: { status: 500, body: { error: 'boom' } },
+};
+const handler = ({ scenario }: any) => {
+  const chosen = scenario && Object.prototype.hasOwnProperty.call(scenarios, scenario)
+    ? scenarios[scenario]
+    : scenarios.default;
+  return chosen;
+};
+(handler as any).__apitemkin_scenarios = Object.keys(scenarios);
+export default handler;`,
+  );
+  await write(
+    'mocks/scenario-echo.ts',
+    `export default ({ scenario, query }: any) => ({ scenario, query });`,
+  );
+
   await write(
     'index.html',
     '<!doctype html><html><body><div id="app"></div></body></html>',
@@ -186,6 +210,57 @@ describe('apitemkin integration with Vite dev server', () => {
       expect(res.status).toBe(500);
       const body = (await res.json()) as { error: string };
       expect(body.error).toMatch(/must default-export a handler function/);
+    });
+  });
+
+  describe('scenarios (v0.3)', () => {
+    it('defaults to the "default" scenario when none is requested', async () => {
+      const res = await fetch(`${baseUrl}/api/scenario-test`);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([{ id: 1, name: 'default-name' }]);
+    });
+
+    it('returns the named scenario when query param matches', async () => {
+      const res = await fetch(
+        `${baseUrl}/api/scenario-test?apitemkin_scenario=empty`,
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([]);
+    });
+
+    it('honours rich responses for named scenarios (500 + body)', async () => {
+      const res = await fetch(
+        `${baseUrl}/api/scenario-test?apitemkin_scenario=error`,
+      );
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ error: 'boom' });
+    });
+
+    it('falls back to default when the scenario is unknown', async () => {
+      const res = await fetch(
+        `${baseUrl}/api/scenario-test?apitemkin_scenario=bogus`,
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([{ id: 1, name: 'default-name' }]);
+    });
+
+    it('exposes req.scenario to plain defineMock handlers and strips it from req.query', async () => {
+      const res = await fetch(
+        `${baseUrl}/api/scenario-echo?apitemkin_scenario=foo&page=1`,
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ scenario: 'foo', query: { page: '1' } });
+    });
+
+    it('omits req.scenario when no apitemkin_scenario param is passed', async () => {
+      const res = await fetch(`${baseUrl}/api/scenario-echo?page=1`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        scenario?: string;
+        query: Record<string, string>;
+      };
+      expect(body.scenario).toBeUndefined();
+      expect(body.query).toEqual({ page: '1' });
     });
   });
 });

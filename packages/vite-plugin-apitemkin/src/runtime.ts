@@ -9,6 +9,11 @@ export interface ApitemkinRequest<TBody = unknown> {
   query: Record<string, string | string[]>;
   body: TBody;
   headers: Record<string, string | string[] | undefined>;
+  /**
+   * Active scenario for this request, extracted from the
+   * `?apitemkin_scenario=<name>` query parameter. `undefined` if not set.
+   */
+  scenario?: string;
 }
 
 export interface RichResponse<TBody = unknown> {
@@ -78,7 +83,15 @@ export async function invokeHandler(
   }
 
   const body = await readJsonBody(req);
-  const query = parseQuery(req.url ?? '');
+  const fullQuery = parseQuery(req.url ?? '');
+  const scenarioRaw = fullQuery.apitemkin_scenario;
+  const scenario =
+    typeof scenarioRaw === 'string' ? scenarioRaw : undefined;
+  // Strip the scenario param so handlers don't see it as an app-level query.
+  const query: Record<string, string | string[]> = {};
+  for (const [k, v] of Object.entries(fullQuery)) {
+    if (k !== 'apitemkin_scenario') query[k] = v;
+  }
   const context: ApitemkinRequest = {
     method: req.method ?? 'GET',
     url: req.url ?? '',
@@ -86,6 +99,7 @@ export async function invokeHandler(
     query,
     body,
     headers: req.headers,
+    scenario,
   };
 
   const result = await (handler as ApitemkinHandler)(context);
