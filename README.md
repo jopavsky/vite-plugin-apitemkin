@@ -2,7 +2,7 @@
 
 Plug-and-play mock API plugin for Vite. The Potemkin village for your API.
 
-> **Status: pre-1.0.** v0.1 is feature-complete but not yet published. Expect API changes before 1.0.
+> **v1.0** — stable release. API is frozen under [SemVer](https://semver.org/); breaking changes require a major bump.
 
 `apitemkin` serves mock JSON responses from a folder structure. Drop a JSON file in `mocks/`, fetch its URL, get the response. No config-file routes, no inline DSL — **the file system is the API spec**.
 
@@ -260,7 +260,7 @@ Existing options each have rough edges: broken HMR when mock files change, file-
 | `0.1.0`  | shipped              | Folder-based JSON mocks with HMR                       |
 | `0.2.0`  | shipped              | Dynamic JS/TS callback responses (stateful, computed)  |
 | `0.3.0`  | shipped              | Scenarios — multiple variants per route + discovery    |
-| `1.0.0`  | next                 | API freeze, semver guarantees, full docs               |
+| `1.0.0`  | in branch            | API freeze, SemVer guarantees, Vite 7 + Node 20        |
 | `1.1.0`  | post-1.0             | Devtools overlay UI for scenario switching             |
 | post-1.0 | maybe                | WebSocket and SSE support, if there's real demand      |
 

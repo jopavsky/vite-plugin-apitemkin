@@ -90,7 +90,7 @@ Released versions are documented in [CHANGELOG.md](../CHANGELOG.md). Future:
   - Types: `ApitemkinOptions`, `ApitemkinRequest`, `ApitemkinHandler`, `RichResponse`, `ScenarioValue`, `ScenariosMap`, `ScenariosHandler`, `MockRoute`, `MockRouteKind`, `PathSegment`, `HttpMethod`, `MatchResult`
   - Discovery endpoint at `GET /_apitemkin/scenarios`
 - **Bump Node engine to `>=20`.** Node 18 reaches end-of-life Apr 2025; Node 20 is the current LTS. Update `engines.node` in `packages/vite-plugin-apitemkin/package.json`.
-- **Vite peer dep stays at `^5 || ^6 || ^7`.** No current code path requires Vite 6+ APIs. Revisit only when a specific need arises.
+- **Vite peer dep narrowed to `^7`** to match what the test suite actually exercises. Previously `^5 || ^6 || ^7` but we only ever ran tests against Vite 7.
 - **Docs pass.** README is comprehensive (current state is close); CHANGELOG covers all releases; consider a `docs/recipes.md` cookbook for common patterns (auth-protected mock, paginated mock, file-upload mock, etc.).
 - **Semver commitment.** From v1.0 onward, breaking changes require a major bump. New features = minor; bug fixes = patch.
 
@@ -134,6 +134,6 @@ These will not be added before v1.0; some may be reconsidered post-1.0 if real d
 | Question | Resolution | Reasoning |
 | --- | --- | --- |
 | npm package name | `vite-plugin-apitemkin` (unscoped) | Already published; locked by reality. |
-| Vite peer dep range | `^5 \|\| ^6 \|\| ^7` | Plugin uses no Vite-6-only APIs. Drop 5 only when a specific need arises. |
+| Vite peer dep range | `^7` at v1.0 | Previously `^5 \|\| ^6 \|\| ^7` but we only tested against 7. Narrowing the claim to what we verify is the honest move before the API freeze. |
 | Node engine floor | `>=18` until v1.0; bump to `>=20` at v1.0 | Node 18 EOL is Apr 2025; Node 20 is current LTS. Bumping at v1.0 is a clean cutover. |
 | Catch-all `[...slug]` convention | Deferred to post-1.0 | Additive feature; not v1.0-blocking. |
