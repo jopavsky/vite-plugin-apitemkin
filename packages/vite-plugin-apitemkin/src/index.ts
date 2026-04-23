@@ -63,6 +63,40 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
       server.watcher.on('change', handleChange);
       server.watcher.on('unlink', handleChange);
 
+      // v0.3 — discovery endpoint. Registered first so it always wins,
+      // even if a user accidentally creates a /_apitemkin/* mock.
+      server.middlewares.use(async (req, res, next) => {
+        if (req.method !== 'GET') return next();
+        const reqPath = (req.url ?? '').split('?')[0]!.split('#')[0]!;
+        if (reqPath !== '/_apitemkin/scenarios') return next();
+
+        const entries = await Promise.all(
+          routes.map(async (route) => {
+            let scenarios: string[] = [];
+            if (route.kind === 'code') {
+              try {
+                const mod = await server.ssrLoadModule(route.filePath);
+                const handler = (mod as { default?: unknown }).default;
+                scenarios =
+                  (handler as { __apitemkin_scenarios?: string[] })
+                    ?.__apitemkin_scenarios ?? [];
+              } catch {
+                /* swallow — module load error shouldn't break discovery */
+              }
+            }
+            return {
+              method: route.method,
+              url: route.urlPattern,
+              kind: route.kind,
+              scenarios,
+            };
+          }),
+        );
+        res.setHeader('Content-Type', 'application/json');
+        res.statusCode = 200;
+        res.end(JSON.stringify(entries));
+      });
+
       server.middlewares.use(async (req, res, next) => {
         if (!req.url || !req.method) return next();
 

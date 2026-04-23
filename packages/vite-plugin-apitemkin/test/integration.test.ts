@@ -263,4 +263,75 @@ describe('apitemkin integration with Vite dev server', () => {
       expect(body.query).toEqual({ page: '1' });
     });
   });
+
+  describe('discovery endpoint /_apitemkin/scenarios (v0.3)', () => {
+    type Entry = {
+      method: string;
+      url: string;
+      kind: 'json' | 'code';
+      scenarios: string[];
+    };
+
+    it('returns 200 JSON', async () => {
+      const res = await fetch(`${baseUrl}/_apitemkin/scenarios`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toContain('application/json');
+    });
+
+    it('every entry has the documented shape', async () => {
+      const res = await fetch(`${baseUrl}/_apitemkin/scenarios`);
+      const entries = (await res.json()) as Entry[];
+      expect(entries.length).toBeGreaterThan(0);
+      for (const entry of entries) {
+        expect(typeof entry.method).toBe('string');
+        expect(typeof entry.url).toBe('string');
+        expect(['json', 'code']).toContain(entry.kind);
+        expect(Array.isArray(entry.scenarios)).toBe(true);
+      }
+    });
+
+    it('marks JSON routes as kind: json with empty scenarios', async () => {
+      const res = await fetch(`${baseUrl}/_apitemkin/scenarios`);
+      const entries = (await res.json()) as Entry[];
+      const healthcheck = entries.find((e) => e.url === '/api/healthcheck');
+      expect(healthcheck).toMatchObject({
+        method: 'GET',
+        kind: 'json',
+        scenarios: [],
+      });
+    });
+
+    it('marks plain code routes without scenarios as kind: code, scenarios: []', async () => {
+      const res = await fetch(`${baseUrl}/_apitemkin/scenarios`);
+      const entries = (await res.json()) as Entry[];
+      const whoami = entries.find((e) => e.url === '/api/whoami');
+      expect(whoami).toMatchObject({
+        method: 'GET',
+        kind: 'code',
+        scenarios: [],
+      });
+    });
+
+    it('lists scenario names for handlers that attach __apitemkin_scenarios', async () => {
+      const res = await fetch(`${baseUrl}/_apitemkin/scenarios`);
+      const entries = (await res.json()) as Entry[];
+      const scenarioTest = entries.find(
+        (e) => e.url === '/api/scenario-test',
+      );
+      expect(scenarioTest).toMatchObject({
+        method: 'GET',
+        kind: 'code',
+        scenarios: ['default', 'empty', 'error'],
+      });
+    });
+
+    it('handles query strings on the discovery path', async () => {
+      const res = await fetch(
+        `${baseUrl}/_apitemkin/scenarios?ignored=param`,
+      );
+      expect(res.status).toBe(200);
+      const entries = (await res.json()) as Entry[];
+      expect(entries.length).toBeGreaterThan(0);
+    });
+  });
 });
