@@ -36,7 +36,7 @@ Streaming gaps in some of these plugins are a *known* deferral here, not somethi
 - **Vite middleware via `configureServer`.** Same port, no proxy, no separate dev server.
 - **HMR via `handleHotUpdate`.** Watching the mocks dir; add/edit/delete a file → routes update without a page reload.
 - **Dev-only enforced.** Plugin's `apply` defaults to `'serve'`. Loud warning if used during build.
-- **TypeScript native, ships `.d.ts`.** Authored in TS, built with tsup to ESM + declarations.
+- **TypeScript native, ships `.d.ts`.** Authored in TS, built with tsdown (Rolldown-based) to ESM + declarations.
 - **Zero runtime dependencies.** URL pattern matching, body parsing — all from Node built-ins or tiny in-repo utilities.
 
 ## 4. Repository layout
@@ -86,7 +86,7 @@ These may be reconsidered post-v1.0 if there's real demand. They are deliberate 
 | Version  | Theme                                   | Acceptance criteria                                                                                |
 | -------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `0.0.1`  | Scaffold (JS + JSDoc, single package)   | Done. Will be superseded by `0.0.2` before any tag is published.                                   |
-| `0.0.2`  | Restructure: monorepo + TS + playground | Empty TS plugin, tsup build, playground workspace, smoke test, CI-ready scripts.                   |
+| `0.0.2`  | Restructure: monorepo + TS + playground | Empty TS plugin, tsdown build, playground workspace, smoke test, CI-ready scripts.                 |
 | `0.1.0`  | MVP folder-based JSON mocks             | Folder scanner, method suffix, `[id]` params, HMR, dev-only, >=80% coverage, playground demoing it. |
 | `0.2.0`  | Dynamic JS/TS callback responses        | Code files alongside JSON files, request body parsing, exported types for handler signatures.      |
 | `1.0.0`  | Stable API + docs                       | API freeze, semver guarantees, full README/recipes, no breaking changes planned.                   |
