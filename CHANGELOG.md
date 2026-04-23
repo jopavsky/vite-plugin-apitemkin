@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-23
+
 ### Added
 - Dynamic JS/TS/MJS callback responses: drop a `.ts`, `.js`, or `.mjs` file in `mocks/`
   with a default-exported handler `(req) => body | { status?, headers?, body, delay? }`.
@@ -55,5 +57,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PathSegment`, `HttpMethod`, `MatchResult`.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jopavsky/vite-plugin-apitemkin/releases/tag/v0.1.0
