@@ -8,7 +8,8 @@
   "scripts": {
     "build": "npm run build -w packages/vite-plugin-apitemkin",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:playground": "npm run dev -w packages/playground"
   },
   "devDependencies": {
     "tsdown": "^0.10.0",
