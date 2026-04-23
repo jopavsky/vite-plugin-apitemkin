@@ -98,6 +98,59 @@ owns the same URL prefix. Move the file into the folder as an index file:
 
 When multiple routes could match, **literal segments beat params** at the same position. So if both `mocks/users/me.json` and `mocks/users/[id].json` exist, `GET /api/users/me` resolves to the literal route; `GET /api/users/42` resolves to the param route.
 
+## Dynamic mocks
+
+Drop a `.ts`, `.js`, or `.mjs` file in `mocks/` (instead of `.json`) to compute the response from the request:
+
+```ts
+// mocks/users/[id].ts
+import { defineMock } from 'vite-plugin-apitemkin';
+
+interface User { id: number; name: string }
+
+export default defineMock<User>(({ params, query }) => ({
+  id: Number(params.id),
+  name: query.expand === 'true' ? 'Ada Lovelace' : 'Ada',
+}));
+```
+
+The handler receives a typed request context — `method`, `url`, `params`, `query`, `body`, `headers` — and returns either:
+
+- **The response body** — sent as `application/json` with status `200`.
+- **A rich response** `{ status?, headers?, body }` — when `status`, `headers`, or both are present. Use this for non-200 responses, custom headers, or non-JSON bodies.
+
+Async handlers are supported. If the handler throws, the response is `500` JSON `{ error: <message> }`.
+
+```ts
+// mocks/teapot.ts — custom status + body
+export default defineMock(() => ({
+  status: 418,
+  body: { reason: "I'm a teapot" },
+}));
+
+// mocks/echo.post.ts — JSON body parsed automatically when Content-Type matches
+export default defineMock(({ body }) => ({ received: body }));
+```
+
+### File-form rules
+
+- **Filename suffix and `[id]` params work the same as for JSON.** `users.post.ts` = POST handler; `users/[id].ts` captures `:id`.
+- **`index.{method}?.ts` inside a folder** uses the folder name as the URL segment, exactly like the JSON case.
+- **Code/JSON collision is an error.** A `users.json` and a `users.ts` mapping to the same URL+method causes a startup error with both file paths. Pick one form per route.
+- **Body parsing is JSON-only.** When `Content-Type: application/json`, `req.body` is the parsed value. Other content types leave `body` as `undefined`. Form, multipart, and binary parsing are deferred.
+- **String returns become `text/plain`; `Buffer` returns are sent verbatim;** anything else is `JSON.stringify`'d. Override `Content-Type` via the rich-response `headers` field.
+
+### TypeScript
+
+`defineMock<T>(handler)` is identity at runtime; its purpose is type inference on the handler's response. Without it, you can annotate manually:
+
+```ts
+import type { ApitemkinHandler } from 'vite-plugin-apitemkin';
+
+const handler: ApitemkinHandler<User> = (req) => ({ id: 1, name: 'Ada' });
+export default handler;
+```
+
 ## Options
 
 | Option      | Type      | Default   | Description                                                            |
@@ -130,8 +183,9 @@ Existing options each have rough edges: broken HMR when mock files change, file-
 | Version  | Status               | Theme                                                  |
 | -------- | -------------------- | ------------------------------------------------------ |
 | `0.0.x`  | done                 | Scaffolding (monorepo + TS + tsdown + playground)      |
-| `0.1.0`  | feature-complete     | Folder-based JSON mocks with HMR                       |
-| `0.2.0`  | next                 | Dynamic JS/TS callback responses (stateful, computed)  |
+| `0.1.0`  | shipped              | Folder-based JSON mocks with HMR                       |
+| `0.2.0`  | in branch            | Dynamic JS/TS callback responses (stateful, computed)  |
+| `0.3.0`  | next                 | Scenarios — multiple variants per route, switch on the fly |
 | `1.0.0`  | planned              | API freeze, semver guarantees                          |
 | post-1.0 | maybe                | WebSocket and SSE support, if there's real demand      |
 

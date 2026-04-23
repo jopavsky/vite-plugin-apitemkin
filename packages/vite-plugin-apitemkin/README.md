@@ -29,9 +29,21 @@ mocks/users/index.post.json → POST /api/users
 mocks/users/[id].json       → GET  /api/users/:id
 ```
 
-Add, edit, or delete files at runtime — no dev-server restart needed. The plugin is dev-only; `vite build` ignores it.
+Or use a TypeScript handler for dynamic responses:
 
-See the project repository for the full folder convention, options table, and examples.
+```ts
+// mocks/users/[id].ts
+import { defineMock } from 'vite-plugin-apitemkin';
+
+export default defineMock(({ params }) => ({
+  id: Number(params.id),
+  name: 'Ada Lovelace #' + params.id,
+}));
+```
+
+Handlers receive `params`, `query`, `body`, `headers` and return either the response body or `{ status?, headers?, body }`. Add, edit, or delete files at runtime — no dev-server restart needed. The plugin is dev-only; `vite build` ignores it.
+
+See the project repository for the full folder convention, options, and examples.
 
 ## License
 

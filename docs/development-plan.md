@@ -83,17 +83,30 @@ The smallest thing a user can drop in and find genuinely useful.
 - Configurable URL prefix (default: `/api`).
 - Vitest coverage including end-to-end tests against a real Vite dev server (using the playground or an inline fixture).
 
-## 6. v0.2 — Dynamic callback responses
+## 6. v0.2 — Dynamic callback responses (shipped)
 
 Same folder convention, but `.ts` / `.js` / `.mjs` files alongside `.json`.
 
-- Default export is a handler: `(req, params) => unknown | Promise<unknown>`.
-- Request body parsed (JSON + form) before being passed in.
-- Type-safe via exported types from the plugin package.
-- `.json` and code files coexist. Code files take precedence on path collision (and warn).
-- Enables dynamic responses based on request data — query params, body, headers.
+- Default export is a handler: `(req) => body | { status?, headers?, body } | Promise<...>`.
+- Handler receives a typed request context: `method`, `url`, `params`, `query`, `body`, `headers`.
+- `defineMock<T>(handler)` helper for type inference; identity at runtime.
+- Request body parsed automatically when `Content-Type: application/json`. Other content types leave `body` as `undefined`.
+- Loaded via Vite's `server.ssrLoadModule` — free TypeScript support, automatic HMR on file change.
+- String returns become `text/plain`; `Buffer` returns are sent verbatim; everything else is `JSON.stringify`'d. Override `Content-Type` via the rich-response `headers`.
+- `.json` and code files coexist freely; collision on the same URL+method is rejected at scan time with a guided error message.
+- Thrown errors become `500 { error: <message> }` JSON.
 
-## 7. Out of scope (v1.0 and earlier)
+## 7. v0.3 — Scenarios (next)
+
+Multiple response variants for the same endpoint, switchable on the fly. Concrete approach to be designed; candidate patterns:
+
+- **Sidecar files with a scenario suffix.** `users.error.json` next to `users.json`. Activate via `?_scenario=error` query param or `X-Apitemkin-Scenario` header. Smallest scope addition.
+- **Scenario overlay tree.** `mocks/_scenarios/<name>/...` mirrors the default tree; files inside override individual paths when the scenario is active. Scales to multi-route scenarios ("the whole API is in maintenance mode"). Larger scope.
+- **Devtools-driven switcher.** Browser overlay (Vite-style) to toggle scenarios visually without touching URLs/headers. Best DX, biggest scope.
+
+Pre-v0.3 design pass should pick one (or a hybrid) based on actual demand. v0.2's dynamic handlers already enable this functionality manually via branching in handler code; the v0.3 work is about ergonomics, not capability.
+
+## 8. Out of scope (v1.0 and earlier)
 
 - WebSocket and SSE streaming.
 - OpenAPI ingestion.
@@ -103,18 +116,19 @@ Same folder convention, but `.ts` / `.js` / `.mjs` files alongside `.json`.
 
 These may be reconsidered post-v1.0 if there's real demand. They are deliberate omissions, not oversights.
 
-## 8. Milestones
+## 9. Milestones
 
-| Version  | Theme                                   | Acceptance criteria                                                                                |
-| -------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `0.0.1`  | Scaffold (JS + JSDoc, single package)   | Done. Will be superseded by `0.0.2` before any tag is published.                                   |
-| `0.0.2`  | Restructure: monorepo + TS + playground | Empty TS plugin, tsdown build, playground workspace, smoke test, CI-ready scripts.                 |
-| `0.1.0`  | MVP folder-based JSON mocks             | Folder scanner, method suffix, `[id]` params, HMR, dev-only, >=80% coverage, playground demoing it. |
-| `0.2.0`  | Dynamic JS/TS callback responses        | Code files alongside JSON files, request body parsing, exported types for handler signatures.      |
-| `1.0.0`  | Stable API + docs                       | API freeze, semver guarantees, full README/recipes, no breaking changes planned.                   |
-| post-1.0 | Maybe streaming                         | WebSocket and SSE support reconsidered based on real demand.                                       |
+| Version | Status | Theme |
+| --- | --- | --- |
+| `0.0.1` | done | Scaffold (JS + JSDoc, single package; superseded by 0.0.2) |
+| `0.0.2` | done | Restructure: monorepo + TS + tsdown + playground |
+| `0.1.0` | shipped | Folder-based JSON mocks with HMR |
+| `0.2.0` | in branch | Dynamic JS/TS callback responses with `defineMock` |
+| `0.3.0` | next | Scenarios - multiple variants per route, switchable |
+| `1.0.0` | planned | API freeze, semver guarantees, full README/recipes |
+| post-1.0 | maybe | WebSocket and SSE support, if demand materializes |
 
-## 9. Open questions
+## 10. Open questions
 
 - **Catch-all convention.** `[...slug].get.json` (Next-style)?
 - **npm package name.** `vite-plugin-apitemkin` (unscoped) or `@opavsky/vite-plugin-apitemkin`?
