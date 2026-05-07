@@ -22,6 +22,8 @@ const blocks = await Promise.all([
   probe('Scenarios — default', '/api/orders'),
   probe('Scenarios — empty', '/api/orders?apitemkin_scenario=empty'),
   probe('Scenarios — error (500)', '/api/orders?apitemkin_scenario=error'),
+  probe('Override — default profile', '/api/profile'),
+  probe('Override — defineOverride deep-merges nested fields', '/api/profile?apitemkin_scenario=darkMode'),
   probe('Discovery — /_apitemkin/scenarios', '/_apitemkin/scenarios'),
 ]);
 

@@ -59,6 +59,22 @@ export default defineMock({
 
 Switch with `?apitemkin_scenario=error`. Discovery at `GET /_apitemkin/scenarios`.
 
+For variants that are small tweaks of a base body, use `defineOverride` to deep-merge a partial:
+
+```ts
+import { defineMock, defineOverride } from 'vite-plugin-apitemkin';
+
+const baseUser = { id: 1, name: 'Ada', verified: true, address: { city: 'London' } };
+
+export default defineMock({
+  default:    baseUser,
+  unverified: defineOverride(baseUser, { verified: false }),
+  inParis:    defineOverride(baseUser, { address: { city: 'Paris' } }),
+});
+```
+
+Arrays / `null` / primitives replace wholesale; `undefined` preserves the base; inputs are never mutated.
+
 See the [GitHub README](https://github.com/jopavsky/vite-plugin-apitemkin#readme) for the full folder convention, scenarios, options table, and roadmap.
 
 ## License
