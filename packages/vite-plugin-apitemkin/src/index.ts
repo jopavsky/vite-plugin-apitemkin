@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { scanMocks, type MockRoute } from './scanner.js';
 import { matchRoute } from './matcher.js';
@@ -24,7 +25,24 @@ export interface ApitemkinOptions {
    * Default: 150.
    */
   delay?: number;
+  /**
+   * Auto-inject the in-browser dev-tools overlay into the host app's HTML
+   * during dev. The overlay lists all discovered routes and lets you switch
+   * the active scenario per route from a corner panel — no source changes,
+   * no manual `?apitemkin_scenario=` URLs. Only active in `serve` mode;
+   * `vite build` never sees the injection.
+   * Default: true.
+   */
+  devtools?: boolean;
 }
+
+// Resolved at module load: the on-disk path of the precompiled overlay
+// client (`dist/devtools.client.js`) sitting next to the bundled plugin
+// entry. Evaluated lazily (on first request) and cached.
+const devtoolsClientPath = fileURLToPath(
+  new URL('./devtools.client.js', import.meta.url),
+);
+let devtoolsClientCache: string | undefined;
 
 export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
   const {
@@ -32,6 +50,7 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
     mocksDir = 'mocks',
     urlPrefix = '/api',
     delay: globalDelay = 150,
+    devtools = true,
   } = options;
 
   let resolvedMocksDir = '';
@@ -44,6 +63,17 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
     configResolved(config: ResolvedConfig) {
       if (!enabled) return;
       resolvedMocksDir = resolve(config.root, mocksDir);
+    },
+
+    transformIndexHtml() {
+      if (!enabled || !devtools) return;
+      return [
+        {
+          tag: 'script',
+          attrs: { type: 'module', src: '/_apitemkin/devtools.js' },
+          injectTo: 'body',
+        },
+      ];
     },
 
     async configureServer(server: ViteDevServer) {
@@ -70,6 +100,37 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
       server.watcher.on('add', handleChange);
       server.watcher.on('change', handleChange);
       server.watcher.on('unlink', handleChange);
+
+      // v1.2 — overlay client. Served from the package's own dist/ next to
+      // the plugin entry. Lazy-read + cached. Registered before the matcher
+      // so a user-defined /_apitemkin/* mock can't shadow it.
+      if (devtools) {
+        server.middlewares.use(async (req, res, next) => {
+          if (req.method !== 'GET') return next();
+          const reqPath = (req.url ?? '').split('?')[0]!.split('#')[0]!;
+          if (reqPath !== '/_apitemkin/devtools.js') return next();
+          try {
+            if (devtoolsClientCache === undefined) {
+              devtoolsClientCache = await readFile(devtoolsClientPath, 'utf8');
+            }
+            res.setHeader(
+              'Content-Type',
+              'application/javascript; charset=utf-8',
+            );
+            res.setHeader('Cache-Control', 'no-cache');
+            res.statusCode = 200;
+            res.end(devtoolsClientCache);
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(
+              JSON.stringify({
+                error: `apitemkin: failed to load devtools client (${(err as Error).message}). Run \`npm run build\` in the plugin package.`,
+              }),
+            );
+          }
+        });
+      }
 
       // v0.3 — discovery endpoint. Registered first so it always wins,
       // even if a user accidentally creates a /_apitemkin/* mock.
