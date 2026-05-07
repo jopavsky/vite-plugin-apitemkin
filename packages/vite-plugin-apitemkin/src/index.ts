@@ -201,9 +201,11 @@ export type {
 } from './scanner.js';
 export { matchRoute } from './matcher.js';
 export type { MatchResult } from './matcher.js';
+export { defineOverride } from './runtime.js';
 export type {
   ApitemkinHandler,
   ApitemkinRequest,
+  DeepPartial,
   RichResponse,
   ScenarioValue,
   ScenariosMap,

@@ -138,3 +138,61 @@ export async function invokeHandler(
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Recursive partial type. Plain object branches become optional and partial
+ * at every depth; arrays and primitive leaves are kept as-is (since the
+ * deep-merge replaces arrays wholesale rather than recursing into them).
+ */
+export type DeepPartial<T> = T extends Array<unknown>
+  ? T
+  : T extends object
+    ? { [K in keyof T]?: DeepPartial<T[K]> }
+    : T;
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === Object.prototype || proto === null;
+}
+
+function deepMerge<T>(base: T, patch: DeepPartial<T>): T {
+  if (!isPlainObject(base) || !isPlainObject(patch)) {
+    return patch as T;
+  }
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, patchVal] of Object.entries(patch)) {
+    if (patchVal === undefined) continue;
+    const baseVal = (base as Record<string, unknown>)[key];
+    result[key] =
+      isPlainObject(baseVal) && isPlainObject(patchVal)
+        ? deepMerge(baseVal, patchVal as DeepPartial<typeof baseVal>)
+        : patchVal;
+  }
+  return result as T;
+}
+
+/**
+ * Build a partial-override variant of a base response body. Returns a fresh
+ * deep-merged copy: nested plain objects merge recursively; arrays, `null`,
+ * primitives, and class instances replace wholesale; `undefined` patch values
+ * preserve the base. Inputs are never mutated.
+ *
+ * Designed to pair with `defineMock(scenariosMap)` — the result is a plain
+ * `T`, so it slots into any `ScenarioValue` position.
+ *
+ * ```ts
+ * const baseUser = { id: 1, name: 'Ada', address: { city: 'London' } };
+ * defineMock<User>({
+ *   default:    baseUser,
+ *   inParis:    defineOverride(baseUser, { address: { city: 'Paris' } }),
+ *   unverified: defineOverride(baseUser, { verified: false }),
+ * });
+ * ```
+ *
+ * For shallow merges, native `{ ...base, ...patch }` is the right tool —
+ * `defineOverride` earns its keep when nesting is involved.
+ */
+export function defineOverride<T>(base: T, patch: DeepPartial<T>): T {
+  return deepMerge(base, patch);
+}

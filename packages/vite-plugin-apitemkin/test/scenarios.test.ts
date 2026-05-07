@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { defineMock } from '../src/index.js';
+import { defineMock, defineOverride } from '../src/index.js';
 import type { ApitemkinRequest } from '../src/runtime.js';
 
 function makeReq(overrides: Partial<ApitemkinRequest> = {}): ApitemkinRequest {
@@ -109,5 +109,49 @@ describe('defineMock with scenarios object', () => {
     ).toBe('D');
     // Empty string is falsy; treated like "no scenario requested"
     expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('composes with defineOverride for partial variants', async () => {
+    interface User {
+      id: number;
+      name: string;
+      verified: boolean;
+      address: { city: string; country: string };
+    }
+    const baseUser: User = {
+      id: 1,
+      name: 'Ada',
+      verified: true,
+      address: { city: 'London', country: 'UK' },
+    };
+    const handler = defineMock<User>({
+      default: baseUser,
+      unverified: defineOverride(baseUser, { verified: false }),
+      inParis: defineOverride(baseUser, { address: { city: 'Paris' } }),
+    });
+
+    expect(
+      await handler(makeReq({ url: '/api/users?apitemkin_scenario=unverified' })),
+    ).toEqual({
+      id: 1,
+      name: 'Ada',
+      verified: false,
+      address: { city: 'London', country: 'UK' },
+    });
+
+    expect(
+      await handler(makeReq({ url: '/api/users?apitemkin_scenario=inParis' })),
+    ).toEqual({
+      id: 1,
+      name: 'Ada',
+      verified: true,
+      address: { city: 'Paris', country: 'UK' },
+    });
+
+    expect(handler.__apitemkin_scenarios).toEqual([
+      'default',
+      'unverified',
+      'inParis',
+    ]);
   });
 });
