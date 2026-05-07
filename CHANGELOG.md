@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `defineOverride(base, patch)` helper for authoring partial scenario
+  variants. Returns a deep-merged copy of `base` with `patch` applied.
+  Plain objects merge recursively; arrays, `null`, primitives, and class
+  instances replace wholesale; `undefined` patch values preserve the
+  base; inputs are never mutated. Pairs with the existing
+  `defineMock(scenariosMap)` form — the helper produces a plain `T`, so
+  the dispatcher and discovery endpoint are untouched. For shallow
+  merges, native `{ ...base, ...patch }` remains the right tool; reach
+  for `defineOverride` when nesting is involved. For status/header
+  variants, wrap explicitly: `{ status: 500, body: defineOverride(base, patch) }`.
+- `DeepPartial<T>` type export for typing custom override helpers
+  downstream.
+
 ## [1.0.0] — 2026-04-23
 
 First stable release. API is now frozen under SemVer: breaking changes

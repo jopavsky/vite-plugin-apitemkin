@@ -129,6 +129,29 @@ curl 'http://localhost:5173/api/orders?apitemkin_scenario=error'   # → 500 JSO
 
 An unknown scenario silently falls back to `default` and logs a console warning. Discovery: `GET /_apitemkin/scenarios` returns a JSON list of every route with its kind (`'json' | 'code'`) and available scenario names. JSON files don't support scenarios — convert to `.ts` if you need variants.
 
+### Partial overrides
+
+When variants are *small tweaks* of a base body — the same User but `verified: false`, the same Order but in a different city — re-stating the entire object per variant gets noisy. Use `defineOverride(base, patch)` to deep-merge a partial onto a base:
+
+```ts
+import { defineMock, defineOverride } from 'vite-plugin-apitemkin';
+
+const baseProfile = {
+  id: 1,
+  name: 'Ada',
+  verified: true,
+  address: { city: 'London', country: 'UK' },
+};
+
+export default defineMock<Profile>({
+  default:    baseProfile,
+  unverified: defineOverride(baseProfile, { verified: false }),
+  inParis:    defineOverride(baseProfile, { address: { city: 'Paris' } }),
+});
+```
+
+Plain objects merge recursively; **arrays, `null`, primitives, and class instances replace wholesale** — there's no element-level array merging or property-level synthesis. `undefined` patch values preserve the base. Inputs are never mutated. For shallow merges, native `{ ...base, ...patch }` is the right tool; reach for `defineOverride` when nesting is involved. For status or header variants, wrap explicitly: `{ status: 500, body: defineOverride(base, patch) }`.
+
 ## Options
 
 | Option      | Type      | Default   | Description                                                              |
