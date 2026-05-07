@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-08
+
 ### Added
 - `defineOverride(base, patch)` helper for authoring partial scenario
   variants. Returns a deep-merged copy of `base` with `patch` applied.
@@ -115,7 +117,8 @@ require a major bump; new features land as minors; bug fixes as patches.
   `PathSegment`, `HttpMethod`, `MatchResult`.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.1.0...v0.2.0
