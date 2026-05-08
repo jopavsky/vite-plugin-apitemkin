@@ -23,6 +23,8 @@ export default defineConfig([
     sourcemap: false,
     dts: false,
     clean: false,
-    outputOptions: { entryFileNames: '[name].js' },
+    // The IIFE has no exports (it's purely side-effecting), but Rolldown
+    // warns if `output.name` is missing. Set a name to silence the warning.
+    outputOptions: { entryFileNames: '[name].js', name: 'apitemkinDevtools' },
   },
 ]);

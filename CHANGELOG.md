@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-08
+
+### Added
+- **Dev-tools overlay** — auto-injected, in-browser scenario switcher.
+  Replaces hand-editing `?apitemkin_scenario=…` in URLs. A launcher
+  pinned to the bottom-right of the dev page opens a panel listing every
+  discovered route with a per-route scenario picker; selections persist
+  per tab in `localStorage` under `apitemkin:selections`. The overlay
+  monkey-patches `window.fetch` and `XMLHttpRequest.open` to append
+  `apitemkin_scenario=<name>` on matching outgoing requests; cross-origin
+  requests, non-matched URLs, and routes left at `default` pass through
+  unchanged. The overlay's pick wins over a pre-existing
+  `apitemkin_scenario` already on the URL — manual URL hacking still
+  works for routes the panel hasn't touched. The panel renders inside a
+  closed shadow root, so the host page's CSS can't bleed in and the
+  overlay's CSS can't bleed out. State that points at routes or scenario
+  names that no longer exist is pruned silently on the next discovery.
+  Bundle: 12.21 KB minified, 1.43 KB gzipped — served by the plugin from
+  `/_apitemkin/devtools.js`, never importable.
+- `ApitemkinOptions.devtools?: boolean` (default `true`). Set `false` to
+  opt out — the plugin then never touches the host HTML or registers the
+  `/_apitemkin/devtools.js` middleware. Like the rest of the plugin, the
+  overlay is dev-only (`apply: 'serve'`); `vite build` is untouched.
+
 ## [1.1.0] — 2026-05-08
 
 ### Added

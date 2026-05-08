@@ -152,6 +152,28 @@ export default defineMock<Profile>({
 
 Plain objects merge recursively; **arrays, `null`, primitives, and class instances replace wholesale** — there's no element-level array merging or property-level synthesis. `undefined` patch values preserve the base. Inputs are never mutated. For shallow merges, native `{ ...base, ...patch }` is the right tool; reach for `defineOverride` when nesting is involved. For status or header variants, wrap explicitly: `{ status: 500, body: defineOverride(base, patch) }`.
 
+## Dev-tools overlay
+
+Switching scenarios by hand-editing `?apitemkin_scenario=…` in URLs gets old fast. v1.2 ships an in-app overlay: a small launcher pinned to the bottom-right of your dev page opens a panel listing every discovered route with a per-route scenario picker.
+
+```ts
+// vite.config.ts — overlay is on by default in dev
+export default defineConfig({ plugins: [apitemkin()] });
+
+// To opt out:
+export default defineConfig({ plugins: [apitemkin({ devtools: false })] });
+```
+
+How it works:
+
+- The plugin auto-injects a single `<script type="module" src="/_apitemkin/devtools.js">` tag into the host app's HTML during dev. `vite build` never sees it.
+- The overlay fetches `/_apitemkin/scenarios`, persists per-route picks in `localStorage` under `apitemkin:selections`, and patches `window.fetch` + `XMLHttpRequest.open` to append `apitemkin_scenario=<name>` on outgoing requests for matching routes. Cross-origin requests, non-matched URLs, and routes left at `default` are passed through unchanged.
+- Overlay's pick wins over a pre-existing `apitemkin_scenario` already on the URL — manual URL hacking still works for routes the panel hasn't touched.
+- The panel itself lives in a closed shadow root, so the host page's CSS can't bleed in and the overlay's CSS can't bleed out. The bundle is ≤ 15 kB minified.
+- JSON mocks have no scenarios, so they show an em-dash in the panel — switch to a `.ts` file with `defineMock(scenariosMap)` if you want variants.
+
+The overlay is per-tab via `localStorage`; the dev server itself stays stateless. State that points at routes or scenario names that no longer exist is pruned silently on the next discovery.
+
 ## Options
 
 | Option      | Type      | Default   | Description                                                              |
@@ -160,6 +182,7 @@ Plain objects merge recursively; **arrays, `null`, primitives, and class instanc
 | `mocksDir`  | `string`  | `'mocks'` | Directory to scan for mock files. Resolved relative to the Vite root.    |
 | `urlPrefix` | `string`  | `'/api'`  | URL prefix to mount mocks under. Pass `''` for the host root.            |
 | `delay`     | `number`  | `150`     | Global artificial delay in ms before each response. Pass `0` to disable. Code mocks can override per-route via `RichResponse.delay`. |
+| `devtools`  | `boolean` | `true`    | Auto-inject the in-browser dev-tools overlay (launcher + scenario panel). Set `false` to opt out — the plugin then never touches the host HTML or registers `/_apitemkin/devtools.js`. |
 
 The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build`. Any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON response (not Vite's SPA HTML fallback), so API consumers always get JSON.
 
@@ -167,8 +190,7 @@ The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build
 
 | Version  | Status    | Theme                                                    |
 | -------- | --------- | -------------------------------------------------------- |
-| `1.1.0`  | post-1.0  | Devtools overlay UI for scenario switching               |
-| post-1.0 | maybe     | Catch-all params (`[...slug]`); WebSocket/SSE support    |
+| post-1.2 | maybe     | Catch-all params (`[...slug]`); WebSocket/SSE support    |
 
 See [CHANGELOG.md](./CHANGELOG.md) for shipped release notes.
 
