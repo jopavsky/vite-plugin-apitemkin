@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed shadow root, so the host page's CSS can't bleed in and the
   overlay's CSS can't bleed out. State that points at routes or scenario
   names that no longer exist is pruned silently on the next discovery.
-  Bundle: 12.21 KB minified, 1.43 KB gzipped — served by the plugin from
+  Bundle: 12.24 KB minified, 4.27 KB gzipped — served by the plugin from
   `/_apitemkin/devtools.js`, never importable.
 - `ApitemkinOptions.devtools?: boolean` (default `true`). Set `false` to
   opt out — the plugin then never touches the host HTML or registers the
