@@ -118,6 +118,11 @@ export function maybeRewrite(
   state: SelectionMap,
 ): URL | null {
   if (url.origin !== currentOrigin) return null;
+  // Locality rule: an explicit `apitemkin_scenario` already on the URL is a
+  // more specific intent than a panel-wide default. Don't fight it — the
+  // overlay only rewrites URLs that aren't already pinned. This lets the
+  // panel and per-call URL params coexist.
+  if (url.searchParams.has(SCENARIO_PARAM)) return null;
   const route = findRoute(routes, method, url.pathname);
   if (!route) return null;
   const scenario = state[selectionKey(method, route.url)];

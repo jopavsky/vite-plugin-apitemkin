@@ -48,7 +48,7 @@ describe('maybeRewrite', () => {
     expect(out?.searchParams.get('apitemkin_scenario')).toBe('error');
   });
 
-  it('overwrites a pre-existing apitemkin_scenario on the URL', () => {
+  it('leaves a pre-existing apitemkin_scenario on the URL alone (URL wins)', () => {
     const state: SelectionMap = { 'GET /api/orders': 'error' };
     const out = maybeRewrite(
       u('/api/orders?apitemkin_scenario=empty'),
@@ -57,7 +57,20 @@ describe('maybeRewrite', () => {
       routes,
       state,
     );
-    expect(out?.searchParams.get('apitemkin_scenario')).toBe('error');
+    // Locality rule: explicit per-call URL param > panel-wide selection.
+    expect(out).toBeNull();
+  });
+
+  it('leaves an empty apitemkin_scenario param alone (still treated as explicit)', () => {
+    const state: SelectionMap = { 'GET /api/orders': 'error' };
+    const out = maybeRewrite(
+      u('/api/orders?apitemkin_scenario='),
+      'GET',
+      ORIGIN,
+      routes,
+      state,
+    );
+    expect(out).toBeNull();
   });
 
   it('returns null (pass-through) when no selection is set', () => {

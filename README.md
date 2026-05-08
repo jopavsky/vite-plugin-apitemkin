@@ -168,7 +168,7 @@ How it works:
 
 - The plugin auto-injects a single `<script type="module" src="/_apitemkin/devtools.js">` tag into the host app's HTML during dev. `vite build` never sees it.
 - The overlay fetches `/_apitemkin/scenarios`, persists per-route picks in `localStorage` under `apitemkin:selections`, and patches `window.fetch` + `XMLHttpRequest.open` to append `apitemkin_scenario=<name>` on outgoing requests for matching routes. Cross-origin requests, non-matched URLs, and routes left at `default` are passed through unchanged.
-- Overlay's pick wins over a pre-existing `apitemkin_scenario` already on the URL — manual URL hacking still works for routes the panel hasn't touched.
+- **URL params win.** A request whose URL already has `apitemkin_scenario=…` is left alone — manual URL hacking and the panel coexist. The panel sets the route's *default* behavior across the app; an explicit per-call query param overrides for that one call.
 - The panel itself lives in a closed shadow root, so the host page's CSS can't bleed in and the overlay's CSS can't bleed out. The bundle is ≤ 15 kB minified.
 - JSON mocks have no scenarios, so they show an em-dash in the panel — switch to a `.ts` file with `defineMock(scenariosMap)` if you want variants.
 
