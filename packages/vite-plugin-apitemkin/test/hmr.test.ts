@@ -59,14 +59,6 @@ beforeAll(async () => {
   const local = server.resolvedUrls?.local[0];
   if (!local) throw new Error('Vite did not return a local URL');
   baseUrl = local.endsWith('/') ? local.slice(0, -1) : local;
-
-  // Warm chokidar. The first `add` event after `server.listen()` on
-  // Windows can be delayed tens of seconds while the native watcher
-  // finishes initializing — long enough to bust per-test budgets.
-  // Force that latency into beforeAll (which has a much larger budget),
-  // so individual tests start with a verifiably operational watcher.
-  await write('mocks/__warmup.json', '{"warm":true}');
-  await pollFetch(`${baseUrl}/api/__warmup`, (r) => r.status === 200, 45_000);
 }, 60_000);
 
 afterAll(async () => {
