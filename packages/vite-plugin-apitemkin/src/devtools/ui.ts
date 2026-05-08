@@ -245,7 +245,17 @@ td.active { width: 24px; text-align: center; }
 }
 `;
 
-export function mountPanel(hooks: PanelHooks): { rerender: () => void } {
+export interface PanelController {
+  rerender: () => void;
+  /**
+   * Reference to the closed shadow root the panel was mounted into. Useful
+   * for tests, which otherwise can't pierce the shadow boundary. Production
+   * callers don't need this — destructure `{ rerender }` and ignore the rest.
+   */
+  shadowRoot: ShadowRoot;
+}
+
+export function mountPanel(hooks: PanelHooks): PanelController {
   const host = document.createElement('div');
   host.id = HOST_ID;
   document.body.appendChild(host);
@@ -454,9 +464,11 @@ export function mountPanel(hooks: PanelHooks): { rerender: () => void } {
         const opt = document.createElement('option');
         opt.value = name;
         opt.textContent = name;
-        if (name === current) opt.selected = true;
         select.appendChild(opt);
       }
+      // Set the live value AFTER all options are appended — relying on
+      // `option.selected = true` is brittle across DOM implementations.
+      select.value = current;
       select.addEventListener('change', () => {
         const value = select.value;
         if (value === 'default') {
@@ -485,7 +497,7 @@ export function mountPanel(hooks: PanelHooks): { rerender: () => void } {
   }
 
   rerender();
-  return { rerender };
+  return { rerender, shadowRoot: shadow };
 }
 
 function pillClass(method: string): string {

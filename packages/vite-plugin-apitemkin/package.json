@@ -52,5 +52,8 @@
   "bugs": {
     "url": "https://github.com/jopavsky/vite-plugin-apitemkin/issues"
   },
-  "homepage": "https://github.com/jopavsky/vite-plugin-apitemkin#readme"
+  "homepage": "https://github.com/jopavsky/vite-plugin-apitemkin#readme",
+  "devDependencies": {
+    "happy-dom": "^20.9.0"
+  }
 }
