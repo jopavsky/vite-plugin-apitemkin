@@ -18,7 +18,10 @@ async function write(rel: string, content: string): Promise<void> {
 async function pollFetch(
   url: string,
   predicate: (res: Response) => boolean | Promise<boolean>,
-  timeoutMs = 5000,
+  // chokidar event latency on Windows under parallel-test load can be
+  // tens of seconds — give it real headroom and rely on the underlying
+  // event firing rather than a tight retry budget.
+  timeoutMs = 30_000,
 ): Promise<Response> {
   const start = Date.now();
   let lastStatus: number | null = null;
@@ -40,7 +43,15 @@ beforeAll(async () => {
 
   server = await createServer({
     root,
-    server: { port: 0 },
+    server: {
+      port: 0,
+      // Force polling on the dev server's chokidar watcher. Native
+      // file watching on Windows (ReadDirectoryChangesW) is fast in
+      // production but races our test budgets in CI/test environments,
+      // sometimes failing to deliver `add` events for tens of seconds.
+      // Polling is deterministic and cheap at 100ms over a tiny tmpdir.
+      watch: { usePolling: true, interval: 100 },
+    },
     plugins: [apitemkin({ delay: 0 })],
     logLevel: 'silent',
   });
@@ -48,7 +59,15 @@ beforeAll(async () => {
   const local = server.resolvedUrls?.local[0];
   if (!local) throw new Error('Vite did not return a local URL');
   baseUrl = local.endsWith('/') ? local.slice(0, -1) : local;
-}, 30_000);
+
+  // Warm chokidar. The first `add` event after `server.listen()` on
+  // Windows can be delayed tens of seconds while the native watcher
+  // finishes initializing — long enough to bust per-test budgets.
+  // Force that latency into beforeAll (which has a much larger budget),
+  // so individual tests start with a verifiably operational watcher.
+  await write('mocks/__warmup.json', '{"warm":true}');
+  await pollFetch(`${baseUrl}/api/__warmup`, (r) => r.status === 200, 45_000);
+}, 60_000);
 
 afterAll(async () => {
   await server?.close();
