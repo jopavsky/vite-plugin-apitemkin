@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { maybeRewrite } from '../src/devtools/client.js';
 import {
-  maybeRewrite,
   pruneState,
   selectionKey,
   type SelectionMap,
-} from '../src/devtools/client.js';
+} from '../src/devtools/state.js';
 import type { RouteEntry } from '../src/devtools/match.js';
 
 const ORIGIN = 'http://localhost:5173';

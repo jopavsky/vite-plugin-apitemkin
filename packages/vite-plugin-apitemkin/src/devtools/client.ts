@@ -2,24 +2,19 @@
 // Built as an IIFE bundle to dist/devtools.client.js and served by the
 // plugin at GET /_apitemkin/devtools.js. Loaded via a <script type="module">
 // tag the plugin injects into the host app's HTML during dev only.
-//
-// v1.2 chunk 3: discovery + state + fetch/XHR interception. UI lands in
-// chunk 4 — for now, drive selections from the devtools console via
-// `window.__apitemkin_set('GET /api/orders', 'error')`.
 
 import { findRoute, type RouteEntry } from './match.js';
+import {
+  loadState,
+  pruneState,
+  saveState,
+  selectionKey,
+  type SelectionMap,
+} from './state.js';
+import { mountPanel, type DiscoveryStatus } from './ui.js';
 
-const STORAGE_KEY = 'apitemkin:selections';
 const DISCOVERY_URL = '/_apitemkin/scenarios';
 const SCENARIO_PARAM = 'apitemkin_scenario';
-
-export interface SelectionMap {
-  [key: string]: string;
-}
-
-export function selectionKey(method: string, urlPattern: string): string {
-  return `${method.toUpperCase()} ${urlPattern}`;
-}
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   bootstrap();
@@ -31,21 +26,50 @@ function bootstrap(): void {
   const originalFetch = window.fetch.bind(window);
 
   let routes: RouteEntry[] = [];
-  const state: SelectionMap = loadState();
+  let status: DiscoveryStatus = 'loading';
+  let lastError: string | null = null;
+  const state: SelectionMap = loadState(window.localStorage);
 
-  const discoveryReady = startDiscovery(originalFetch)
-    .then((discovered) => {
-      routes = discovered;
-      pruneState(state, routes);
-      saveState(state);
-    })
-    .catch((err) => {
-      console.warn('[apitemkin] discovery failed:', err);
-    });
+  let discoveryReady: Promise<void> = runDiscovery();
 
   installFetchPatch(originalFetch, () => discoveryReady, () => routes, state);
   installXHRPatch(() => routes, state);
-  exposeConsoleHook(state);
+
+  const panel = mountPanel({
+    state,
+    getRoutes: () => routes,
+    getStatus: () => status,
+    getError: () => lastError,
+    refresh: () => {
+      discoveryReady = runDiscovery();
+      return discoveryReady;
+    },
+    onChange: () => {
+      saveState(window.localStorage, state);
+    },
+  });
+
+  // Re-render once discovery resolves so the table swaps from the
+  // loading skeleton to the route list.
+  discoveryReady.then(() => panel.rerender());
+
+  function runDiscovery(): Promise<void> {
+    status = 'loading';
+    lastError = null;
+    return startDiscovery(originalFetch)
+      .then((discovered) => {
+        routes = discovered;
+        pruneState(state, routes);
+        saveState(window.localStorage, state);
+        status = routes.length === 0 ? 'empty' : 'ok';
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('[apitemkin] discovery failed:', message);
+        status = 'error';
+        lastError = message;
+      });
+  }
 }
 
 // ---------- discovery ----------
@@ -82,49 +106,6 @@ async function startDiscovery(
     }
   }
   return out;
-}
-
-// ---------- state ----------
-
-function loadState(): SelectionMap {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const out: SelectionMap = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof v === 'string' && v.length > 0) out[k] = v;
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
-function saveState(state: SelectionMap): void {
-  try {
-    if (Object.keys(state).length === 0) {
-      window.localStorage.removeItem(STORAGE_KEY);
-    } else {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
-  } catch {
-    // localStorage disabled / quota — degrade silently.
-  }
-}
-
-export function pruneState(state: SelectionMap, routes: RouteEntry[]): void {
-  const known = new Map<string, Set<string>>();
-  for (const r of routes) {
-    known.set(selectionKey(r.method, r.url), new Set(r.scenarios ?? []));
-  }
-  for (const key of Object.keys(state)) {
-    const valid = known.get(key);
-    if (!valid || !valid.has(state[key]!)) {
-      delete state[key];
-    }
-  }
 }
 
 // ---------- interception ----------
@@ -171,7 +152,13 @@ function installFetchPatch(
       return originalFetch(input, init);
     }
 
-    const rewritten = maybeRewrite(url, method, window.location.origin, getRoutes(), state);
+    const rewritten = maybeRewrite(
+      url,
+      method,
+      window.location.origin,
+      getRoutes(),
+      state,
+    );
     if (!rewritten) return originalFetch(input, init);
 
     if (typeof input === 'string') {
@@ -189,11 +176,11 @@ function installXHRPatch(
   state: SelectionMap,
 ): void {
   const originalOpen = XMLHttpRequest.prototype.open;
-  // XHR.open is synchronous, so we can't await discovery here. Requests made
-  // before discovery resolves pass through unchanged — acceptable for the
-  // overlay's intended use, which is per-route selection persisted across
-  // reloads. After discovery resolves (~ms), every subsequent open() sees
-  // the populated routes and gets the correct rewrite.
+  // XHR.open is synchronous, so we can't await discovery here. Requests
+  // made before discovery resolves pass through unchanged — acceptable
+  // for the overlay's intended use, which is per-route selection
+  // persisted across reloads. After discovery resolves, every subsequent
+  // open() sees the populated routes and gets the correct rewrite.
   XMLHttpRequest.prototype.open = function apitemkinXhrOpen(
     this: XMLHttpRequest,
     method: string,
@@ -214,33 +201,10 @@ function installXHRPatch(
     } catch {
       // bad URL — pass through unchanged
     }
-    // Preserve original arity so callers passing user/password still work.
     return (originalOpen as (...a: unknown[]) => void).apply(this, [
       method,
       target,
       ...rest,
     ]);
   } as typeof XMLHttpRequest.prototype.open;
-}
-
-// ---------- chunk-3 console hook (removed in chunk 4) ----------
-
-function exposeConsoleHook(state: SelectionMap): void {
-  const w = window as unknown as Record<string, unknown>;
-  w['__apitemkin_set'] = (key: string, scenario: string): void => {
-    if (typeof key !== 'string' || key.length === 0) {
-      console.warn(
-        '[apitemkin] __apitemkin_set: first arg must be "METHOD /path"',
-      );
-      return;
-    }
-    if (!scenario || scenario === 'default') {
-      delete state[key];
-    } else {
-      state[key] = scenario;
-    }
-    saveState(state);
-    console.debug('[apitemkin] selections =', { ...state });
-  };
-  w['__apitemkin_get'] = (): SelectionMap => ({ ...state });
 }
