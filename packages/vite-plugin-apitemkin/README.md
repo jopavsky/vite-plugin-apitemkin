@@ -75,6 +75,10 @@ export default defineMock({
 
 Arrays / `null` / primitives replace wholesale; `undefined` preserves the base; inputs are never mutated.
 
+## Dev-tools overlay (v1.2)
+
+Auto-injected in dev. Adds a launcher to the bottom-right of your app; the panel lists every discovered route with a per-route scenario picker. Selections persist per tab in `localStorage`; the plugin patches `fetch` and `XMLHttpRequest.open` to append `?apitemkin_scenario=<name>` on outgoing requests automatically. JSON mocks (no scenarios) show an em-dash. Opt out with `apitemkin({ devtools: false })`.
+
 See the [GitHub README](https://github.com/jopavsky/vite-plugin-apitemkin#readme) for the full folder convention, scenarios, options table, and roadmap.
 
 ## License
