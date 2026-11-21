@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-11-21
+
 ### Added
 - `llms.txt`, a guide for AI coding assistants on writing apitemkin mocks,
   shipped in the npm package.
@@ -161,7 +163,9 @@ require a major bump; new features land as minors; bug fixes as patches.
   `PathSegment`, `HttpMethod`, `MatchResult`.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v0.2.0...v0.3.0
