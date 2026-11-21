@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-21T00:00:00Z",
+  "title": "Design System: apitemkin",
+  "status": "baseline-before-redesign",
+  "extensions": {
+    "colorMeta": {
+      "ink-navy":       { "role": "primary",   "displayName": "Ink Navy",       "canonical": "#111827", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "graphite-panel": { "role": "neutral",   "displayName": "Graphite Panel", "canonical": "#1f2937", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "slate-rule":     { "role": "neutral",   "displayName": "Slate Rule",     "canonical": "#374151", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "slate-control":  { "role": "neutral",   "displayName": "Slate Control",  "canonical": "#4b5563", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "ash-text":       { "role": "neutral",   "displayName": "Ash",            "canonical": "#6b7280", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "fog-text":       { "role": "neutral",   "displayName": "Fog",            "canonical": "#9ca3af", "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "control-border": { "role": "neutral",   "displayName": "Control Border", "canonical": "#d1d5db", "tonalRamp": ["#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6"] },
+      "hairline":       { "role": "neutral",   "displayName": "Hairline",       "canonical": "#e5e7eb", "tonalRamp": ["#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6"] },
+      "mist":           { "role": "neutral",   "displayName": "Mist",           "canonical": "#f3f4f6", "tonalRamp": ["#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6", "#f9fafb"] },
+      "frost":          { "role": "neutral",   "displayName": "Frost",          "canonical": "#f9fafb", "tonalRamp": ["#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6", "#f9fafb"] },
+      "paper-white":    { "role": "neutral",   "displayName": "Paper White",    "canonical": "#ffffff", "tonalRamp": ["#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6", "#f9fafb", "#ffffff"] },
+      "get-blue":       { "role": "secondary", "displayName": "Method Blue",    "canonical": "#2563eb", "tonalRamp": ["#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe"] },
+      "post-green":     { "role": "secondary", "displayName": "Method Green",   "canonical": "#16a34a", "tonalRamp": ["#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0"] },
+      "put-amber":      { "role": "secondary", "displayName": "Method Amber",   "canonical": "#d97706", "tonalRamp": ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fcd34d", "#fde68a"] },
+      "signal-red":     { "role": "secondary", "displayName": "Signal Red",     "canonical": "#dc2626", "tonalRamp": ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca"] },
+      "oxide-ink":      { "role": "tertiary",  "displayName": "Oxide Ink",      "canonical": "#7f1d1d", "tonalRamp": ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca"] },
+      "blush-wash":     { "role": "tertiary",  "displayName": "Blush Wash",     "canonical": "#fef2f2", "tonalRamp": ["#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fef2f2"] }
+    },
+    "typographyMeta": {
+      "title":     { "displayName": "Title",     "purpose": "The panel's single header, 'apitemkin · scenarios'." },
+      "body":      { "displayName": "Body",      "purpose": "Table cells and empty-state messages." },
+      "label":     { "displayName": "Label",     "purpose": "Uppercase table column headers. Authored 600/10px; renders bold 12px because the font shorthand is invalid." },
+      "code":      { "displayName": "Code",      "purpose": "Route URLs in the table." },
+      "code-pill": { "displayName": "Code Pill", "purpose": "HTTP method pills." }
+    },
+    "shadows": [
+      { "name": "launcher-float", "value": "0 4px 14px rgba(0,0,0,0.18)", "purpose": "Lifts the resting launcher pill off the host page." },
+      { "name": "panel-float",    "value": "0 12px 32px rgba(0,0,0,0.18)", "purpose": "Lifts the open panel off the host page. Same value in dark mode, where it nearly vanishes." }
+    ],
+    "motion": [],
+    "breakpoints": [],
+    "zIndex": [
+      { "name": "launcher", "value": "2147483647", "purpose": "Always topmost, above the panel." },
+      { "name": "panel",    "value": "2147483646", "purpose": "One below the launcher." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Launcher",
+      "kind": "custom",
+      "refersTo": "launcher",
+      "description": "Dark capsule pinned bottom-right; opens the panel and counts active overrides.",
+      "html": "<button type=\"button\" class=\"ds-launcher\">apitemkin<span class=\"ds-launcher-badge\">2</span></button>",
+      "css": ".ds-launcher { background: #111827; color: #f3f4f6; border: 1px solid #374151; border-radius: 999px; padding: 6px 14px; font-weight: 500; font-size: 13.33px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.18); } .ds-launcher:hover { background: #1f2937; } .ds-launcher:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; } .ds-launcher-badge { display: inline-block; background: #dc2626; color: #fff; border-radius: 999px; padding: 1px 6px; margin-left: 6px; font-size: 10px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Header actions (Refresh, Reset all) and the empty-state Retry.",
+      "html": "<button type=\"button\" class=\"ds-btn-secondary\">Refresh</button>",
+      "css": ".ds-btn-secondary { background: #ffffff; color: #111827; border: 1px solid #d1d5db; border-radius: 4px; padding: 3px 8px; font-size: 13.33px; cursor: pointer; } .ds-btn-secondary:hover { background: #f3f4f6; } .ds-btn-secondary:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; } .ds-btn-secondary:disabled { opacity: 0.6; cursor: default; } @media (prefers-color-scheme: dark) { .ds-btn-secondary { background: #1f2937; border-color: #4b5563; color: #f3f4f6; } .ds-btn-secondary:hover { background: #374151; } }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive confirm action ('Clear') in the reset confirmation bar.",
+      "html": "<button type=\"button\" class=\"ds-btn-danger\">Clear</button>",
+      "css": ".ds-btn-danger { background: #dc2626; color: #fff; border: none; border-radius: 4px; padding: 3px 10px; font-size: 13.33px; cursor: pointer; } .ds-btn-danger:hover { background: #b91c1c; } .ds-btn-danger:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }"
+    },
+    {
+      "name": "Method Pills",
+      "kind": "chip",
+      "refersTo": "method-pill-get",
+      "description": "Solid mono pills color-coded by HTTP method.",
+      "html": "<span class=\"ds-pill ds-pill-get\">GET</span> <span class=\"ds-pill ds-pill-post\">POST</span> <span class=\"ds-pill ds-pill-put\">PUT</span> <span class=\"ds-pill ds-pill-delete\">DELETE</span> <span class=\"ds-pill ds-pill-other\">HEAD</span>",
+      "css": ".ds-pill { display: inline-block; font: 600 10px/1 ui-monospace, 'SF Mono', Menlo, monospace; padding: 3px 6px; border-radius: 3px; color: #fff; letter-spacing: 0.03em; } .ds-pill-get { background: #2563eb; } .ds-pill-post { background: #16a34a; } .ds-pill-put { background: #d97706; } .ds-pill-delete { background: #dc2626; } .ds-pill-other { background: #6b7280; }"
+    },
+    {
+      "name": "Scenario Select",
+      "kind": "input",
+      "refersTo": "scenario-select",
+      "description": "Native select picking a route's scenario; 'default' always first.",
+      "html": "<select class=\"ds-select\"><option>default</option><option>empty</option><option>error</option></select>",
+      "css": ".ds-select { width: 180px; font: 12px system-ui, -apple-system, 'Segoe UI', sans-serif; padding: 2px 4px; border: 1px solid #d1d5db; border-radius: 4px; background: #ffffff; color: #111827; } .ds-select:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; } @media (prefers-color-scheme: dark) { .ds-select { background: #1f2937; border-color: #4b5563; color: #f3f4f6; } }"
+    },
+    {
+      "name": "Route Table",
+      "kind": "custom",
+      "refersTo": "table-header",
+      "description": "Signature component: sticky uppercase header, method pill, mono URL, scenario select, active dot.",
+      "html": "<table class=\"ds-table\"><thead><tr><th>Method</th><th>URL</th><th>Scenario</th><th></th></tr></thead><tbody><tr><td><span class=\"ds-tpill\" style=\"background:#2563eb\">GET</span></td><td class=\"ds-url\">/api/orders</td><td><select class=\"ds-tselect\"><option>error</option></select></td><td class=\"ds-active\"><span class=\"ds-dot\"></span></td></tr><tr><td><span class=\"ds-tpill\" style=\"background:#16a34a\">POST</span></td><td class=\"ds-url\">/api/echo</td><td class=\"ds-na\">—</td><td class=\"ds-active\"></td></tr></tbody></table>",
+      "css": ".ds-table { width: 440px; border-collapse: collapse; font: 12px system-ui, -apple-system, 'Segoe UI', sans-serif; color: #111827; background: #fff; } .ds-table th, .ds-table td { text-align: left; padding: 6px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: middle; } .ds-table th { background: #f9fafb; color: #4b5563; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; } .ds-table tbody tr:hover td { background: #f9fafb; } .ds-tpill { display: inline-block; font: 600 10px/1 ui-monospace, 'SF Mono', Menlo, monospace; padding: 3px 6px; border-radius: 3px; color: #fff; } .ds-url { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 11.5px; } .ds-tselect { width: 100%; font: inherit; padding: 2px 4px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; } .ds-na { color: #9ca3af; font-style: italic; } .ds-active { width: 24px; text-align: center; } .ds-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2563eb; } @media (prefers-color-scheme: dark) { .ds-table { background: #1f2937; color: #f3f4f6; } .ds-table th { background: #111827; color: #d1d5db; } .ds-table th, .ds-table td { border-bottom-color: #374151; } .ds-table tbody tr:hover td { background: #374151; } .ds-tselect { background: #1f2937; border-color: #4b5563; color: #f3f4f6; } }"
+    },
+    {
+      "name": "Confirm Bar",
+      "kind": "custom",
+      "refersTo": "button-danger",
+      "description": "Inline strip asking to clear all scenario selections.",
+      "html": "<div class=\"ds-confirm\"><span>Clear all scenario selections?</span><button type=\"button\" class=\"ds-confirm-yes\">Clear</button><button type=\"button\" class=\"ds-confirm-no\">Cancel</button></div>",
+      "css": ".ds-confirm { width: 440px; padding: 8px 12px; background: #fef2f2; border-bottom: 1px solid #fecaca; color: #7f1d1d; display: flex; align-items: center; gap: 8px; font: 12px system-ui, -apple-system, 'Segoe UI', sans-serif; } .ds-confirm span { flex: 1; } .ds-confirm-yes { background: #dc2626; color: #fff; border: none; border-radius: 4px; padding: 3px 10px; cursor: pointer; } .ds-confirm-no { background: #fff; color: #111827; border: 1px solid #d1d5db; border-radius: 4px; padding: 3px 10px; cursor: pointer; } @media (prefers-color-scheme: dark) { .ds-confirm { background: #7f1d1d; border-bottom-color: #991b1b; color: #fee2e2; } .ds-confirm-no { background: #1f2937; border-color: #4b5563; color: #f3f4f6; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Stock Devtools Drawer",
+    "overview": "The only designed surface is the dev-tools overlay: a dark pill launcher pinned bottom-right, and a 440px side panel holding one dense table of routes. It borrows the look of a generic browser-devtools utility, built from the stock Tailwind gray, blue, green, amber and red values, hand-typed into a CSS string. The panel is utilitarian and compact (12px text, 6px row padding), and it has no brand expression beyond the lowercase wordmark \"apitemkin\" on the launcher and the \"apitemkin · scenarios\" header. The README's Potemkin wit appears nowhere in the UI.\n\nIt lives inside a closed shadow root in someone else's app, so every value is self-contained: no custom properties, no web fonts, no images, no icons. Light and dark follow the OS through `prefers-color-scheme`, not the host page. The other surfaces have no system at all. The playground is a browser-default page with one `<pre>`, and there is no docs site yet.",
+    "keyCharacteristics": [
+      "One surface, one table, one control per row (a native `<select>`).",
+      "Color carries the HTTP method; everything else is gray.",
+      "Flat inside, floating outside: two soft shadows lift the launcher and panel off the host page.",
+      "No motion. The panel snaps between `display: none` and `flex`.",
+      "Every value hard-coded; there are no tokens or variables."
+    ],
+    "rules": [
+      { "name": "The Method-Is-the-Color Rule", "body": "Saturated color appears only on method pills, plus the active dot, the badge and the danger button. Everything structural is gray.", "section": "colors" }
+    ],
+    "dos": [
+      "**Do** keep every style self-contained inside the closed shadow root. Host CSS can't reach in and overlay CSS must not leak out. *(Durable.)*",
+      "**Do** follow the OS color scheme. The overlay must read in both light and dark regardless of the host page's palette. *(Durable.)*",
+      "**Do** keep the overlay above everything (`z-index` at or near `2147483647`), and keep the launcher clickable when the panel is open. *(Durable.)*",
+      "**Do** set monospace for API facts (methods, URLs, scenario names). *(Incumbent pattern, worth keeping.)*",
+      "**Do** fit the bundle budget: overlay JS plus CSS at or under 15 kB minified. Don't load anything over the network. *(Durable.)*"
+    ],
+    "donts": [
+      "**Don't** write `font: … inherit` shorthands. They are invalid and silently fall back to UA fonts. *(Known defect.)*",
+      "**Don't** load web fonts, images or icon packages into the overlay. They cost bundle budget and network requests inside someone else's dev page. *(Durable; inline SVG is fine.)*",
+      "**Don't** treat the incumbent's stock Tailwind palette, generic gray chrome or absence of brand voice as the identity to preserve. A full redesign is planned. *(Baseline note.)*",
+      "**Don't** reuse one red for unrelated meanings (DELETE, a neutral count, destructive confirm), as the incumbent does. *(Observed issue.)*"
+    ]
+  }
+}
