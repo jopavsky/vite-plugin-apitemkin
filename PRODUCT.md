@@ -53,13 +53,18 @@ Neighbors, for reference (research from 2026-11-21, not a claim to repeat public
 
 - **Folder convention:** file path → URL; filename suffix → method (no suffix means GET); `[name]` → dynamic param; `index.{method}?.<ext>` takes the folder's name as its URL segment; literal segments beat params. A file `X.<ext>` and a folder `X/` can't be siblings.
 - **Mock kinds:** `.json` (static, no scenarios) and `.ts` / `.js` / `.mjs` (handler or scenarios map). A route can't have both a JSON and a code mock for the same method.
-- **Responses:** a plain body (JSON, status 200) or a rich response `{ status?, headers?, body, delay? }`. Strings become `text/plain` and Buffers are sent as-is. Thrown errors become `500 { error }`. A request under `urlPrefix` that matches nothing gets a JSON 404, never Vite's SPA HTML fallback.
+- **Responses:** a plain body (JSON, status 200) or a rich response `{ status?, headers?, body, delay? }`. Strings become `text/plain` and Buffers are sent as-is. Thrown errors become `500 { error }`. A request under `urlPrefix` that matches nothing gets a JSON 404, never Vite's SPA HTML fallback (unless `fallthrough` is on).
 - **Request bodies:** only JSON bodies are parsed.
-- **Scenarios:** activated per request with `?apitemkin_scenario=<name>`. `default` is required. An unknown name falls back to `default` and logs a warning.
+- **Scenarios:** activated per request with `?_scenario=<name>`. `default` is required. An unknown name falls back to `default` and logs a warning.
 - **Overlay:** on by default; `devtools: false` turns it off. It patches `fetch` and `XMLHttpRequest.open` for same-origin matching routes only. A URL param beats the panel's selection. Selections are stored per tab in `localStorage` under `apitemkin:selections`, and stale ones are pruned silently. It renders in a closed shadow root so no CSS leaks either way. Bundle budget is ≤ 15 kB minified (shipped: 12.26 KB min, 4.28 KB gzip). It follows the host's `color-scheme` (light/dark).
 - **Packaging:** no runtime dependencies. ESM plus `.d.ts`, built with tsdown. MIT license.
 - **Stability:** v1 API is frozen under SemVer. Breaking changes need a major version.
-- **Roadmap ("maybe," post-1.2):** catch-all params (`[...slug]`) and WebSocket/SSE support. Neither is committed.
+- **Roadmap** (see `docs/development-plan.md`):
+  - **1.3, easier to start:** AI guide, opt-in fall-through to a real backend, a `many()` helper, and an internal engine/plugin split.
+  - **1.4:** redesigned overlay.
+  - **1.5:** in-memory CRUD collections.
+  - **2.0:** remove deprecated `apitemkin_scenario`.
+  - **Later, maybe:** docs site, HAR/OpenAPI import, catch-all params, WebSocket/SSE.
 - **Terminology:** mock, route, method suffix, param, code mock, scenario, rich response, override, discovery endpoint, dev-tools overlay, launcher, panel.
 
 ## Brand Commitments

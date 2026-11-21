@@ -11,10 +11,13 @@ import {
   selectionKey,
   type SelectionMap,
 } from './state.js';
+import {
+  LEGACY_SCENARIO_PARAM,
+  SCENARIO_PARAM,
+} from '../core/scenario-param.js';
 import { mountPanel, type DiscoveryStatus } from './ui.js';
 
 const DISCOVERY_URL = '/_apitemkin/scenarios';
-const SCENARIO_PARAM = 'apitemkin_scenario';
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   bootstrap();
@@ -118,11 +121,16 @@ export function maybeRewrite(
   state: SelectionMap,
 ): URL | null {
   if (url.origin !== currentOrigin) return null;
-  // Locality rule: an explicit `apitemkin_scenario` already on the URL is a
-  // more specific intent than a panel-wide default. Don't fight it — the
-  // overlay only rewrites URLs that aren't already pinned. This lets the
-  // panel and per-call URL params coexist.
-  if (url.searchParams.has(SCENARIO_PARAM)) return null;
+  // Locality rule: an explicit `_scenario` (or deprecated `apitemkin_scenario`,
+  // accepted until 2.0) already on the URL is a more specific intent than a
+  // panel-wide default. Don't fight it — the overlay only rewrites URLs that
+  // aren't already pinned. This lets the panel and per-call URL params coexist.
+  if (
+    url.searchParams.has(SCENARIO_PARAM) ||
+    url.searchParams.has(LEGACY_SCENARIO_PARAM)
+  ) {
+    return null;
+  }
   const route = findRoute(routes, method, url.pathname);
   if (!route) return null;
   const scenario = state[selectionKey(method, route.url)];

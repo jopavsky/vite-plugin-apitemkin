@@ -41,7 +41,7 @@ describe('defineMock with scenarios object', () => {
   it('returns the named scenario when one is requested and exists', async () => {
     const handler = defineMock<string>({ default: 'D', other: 'O' });
     expect(
-      await handler(makeReq({ url: '/api/test?apitemkin_scenario=other' })),
+      await handler(makeReq({ url: '/api/test?_scenario=other' })),
     ).toBe('O');
     expect(console.warn).not.toHaveBeenCalled();
   });
@@ -51,7 +51,7 @@ describe('defineMock with scenarios object', () => {
     const result = await handler(
       makeReq({
         method: 'GET',
-        url: '/api/users?apitemkin_scenario=missing',
+        url: '/api/users?_scenario=missing',
       }),
     );
     expect(result).toBe('D');
@@ -78,7 +78,7 @@ describe('defineMock with scenarios object', () => {
       teapot: rich,
     });
     expect(
-      await handler(makeReq({ url: '/api/test?apitemkin_scenario=teapot' })),
+      await handler(makeReq({ url: '/api/test?_scenario=teapot' })),
     ).toBe(rich);
   });
 
@@ -88,7 +88,7 @@ describe('defineMock with scenarios object', () => {
       empty: [],
     });
     expect(
-      await handler(makeReq({ url: '/api/test?apitemkin_scenario=empty' })),
+      await handler(makeReq({ url: '/api/test?_scenario=empty' })),
     ).toEqual([]);
   });
 
@@ -98,14 +98,29 @@ describe('defineMock with scenarios object', () => {
       computed: async () => 'computed',
     });
     expect(
-      await handler(makeReq({ url: '/api/test?apitemkin_scenario=computed' })),
+      await handler(makeReq({ url: '/api/test?_scenario=computed' })),
     ).toBe('computed');
   });
 
-  it('falls back to default when apitemkin_scenario is the empty string', async () => {
+  it('still accepts the deprecated apitemkin_scenario param', async () => {
+    const h = defineMock({ default: { v: 'd' }, other: { v: 'o' } });
+    expect(await h(makeReq({ url: '/api/test?apitemkin_scenario=other' }))).toEqual({ v: 'o' });
+  });
+  it('_scenario wins when both params are present', async () => {
+    const h = defineMock({ default: { v: 'd' }, error: { v: 'e' }, empty: { v: 'x' } });
+    expect(await h(makeReq({ url: '/api/test?_scenario=error&apitemkin_scenario=empty' }))).toEqual({ v: 'e' });
+  });
+  it('an empty _scenario still wins over the legacy param and serves default without a warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = defineMock({ default: { v: 'd' }, empty: { v: 'x' } });
+    expect(await h(makeReq({ url: '/api/test?_scenario=&apitemkin_scenario=empty' }))).toEqual({ v: 'd' });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+  it('falls back to default when _scenario is the empty string', async () => {
     const handler = defineMock<string>({ default: 'D' });
     expect(
-      await handler(makeReq({ url: '/api/test?apitemkin_scenario=' })),
+      await handler(makeReq({ url: '/api/test?_scenario=' })),
     ).toBe('D');
     // Empty string is falsy; treated like "no scenario requested"
     expect(console.warn).not.toHaveBeenCalled();
@@ -131,7 +146,7 @@ describe('defineMock with scenarios object', () => {
     });
 
     expect(
-      await handler(makeReq({ url: '/api/users?apitemkin_scenario=unverified' })),
+      await handler(makeReq({ url: '/api/users?_scenario=unverified' })),
     ).toEqual({
       id: 1,
       name: 'Ada',
@@ -140,7 +155,7 @@ describe('defineMock with scenarios object', () => {
     });
 
     expect(
-      await handler(makeReq({ url: '/api/users?apitemkin_scenario=inParis' })),
+      await handler(makeReq({ url: '/api/users?_scenario=inParis' })),
     ).toEqual({
       id: 1,
       name: 'Ada',

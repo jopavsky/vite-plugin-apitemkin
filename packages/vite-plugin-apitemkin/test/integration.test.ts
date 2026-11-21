@@ -70,7 +70,9 @@ function extractScenario(url: string): string | undefined {
   const q = url.indexOf('?');
   if (q === -1) return undefined;
   const params = new URLSearchParams(url.slice(q + 1).split('#')[0]);
-  return params.get('apitemkin_scenario') ?? undefined;
+  return params.has('_scenario')
+    ? (params.get('_scenario') ?? undefined)
+    : (params.get('apitemkin_scenario') ?? undefined);
 }
 const handler = ({ url }: any) => {
   const scenario = extractScenario(url);
@@ -231,7 +233,7 @@ describe('apitemkin integration with Vite dev server', () => {
 
     it('returns the named scenario when query param matches', async () => {
       const res = await fetch(
-        `${baseUrl}/api/scenario-test?apitemkin_scenario=empty`,
+        `${baseUrl}/api/scenario-test?_scenario=empty`,
       );
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual([]);
@@ -239,7 +241,7 @@ describe('apitemkin integration with Vite dev server', () => {
 
     it('honours rich responses for named scenarios (500 + body)', async () => {
       const res = await fetch(
-        `${baseUrl}/api/scenario-test?apitemkin_scenario=error`,
+        `${baseUrl}/api/scenario-test?_scenario=error`,
       );
       expect(res.status).toBe(500);
       expect(await res.json()).toEqual({ error: 'boom' });
@@ -247,18 +249,28 @@ describe('apitemkin integration with Vite dev server', () => {
 
     it('falls back to default when the scenario is unknown', async () => {
       const res = await fetch(
-        `${baseUrl}/api/scenario-test?apitemkin_scenario=bogus`,
+        `${baseUrl}/api/scenario-test?_scenario=bogus`,
       );
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual([{ id: 1, name: 'default-name' }]);
     });
 
-    it('strips apitemkin_scenario from req.query for plain handlers', async () => {
+    // Checks the legacy param reaches the handler via req.url un-stripped (the
+    // inline fixture parses it itself). Real defineMock precedence between
+    // _scenario and apitemkin_scenario is covered in test/scenarios.test.ts.
+    it('still accepts the deprecated apitemkin_scenario param', async () => {
       const res = await fetch(
-        `${baseUrl}/api/query-echo?apitemkin_scenario=foo&page=1`,
+        `${baseUrl}/api/scenario-test?apitemkin_scenario=error`,
+      );
+      expect(res.status).toBe(500);
+    });
+
+    it('strips both scenario params from req.query for plain handlers', async () => {
+      const res = await fetch(
+        `${baseUrl}/api/query-echo?_scenario=foo&apitemkin_scenario=bar&page=1`,
       );
       expect(res.status).toBe(200);
-      // apitemkin_scenario is consumed by the plugin and never reaches the handler
+      // both scenario params are consumed by the plugin and never reach the handler
       expect(await res.json()).toEqual({ query: { page: '1' } });
     });
   });

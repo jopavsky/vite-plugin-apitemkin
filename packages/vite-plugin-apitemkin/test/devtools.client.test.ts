@@ -30,7 +30,7 @@ describe('maybeRewrite', () => {
   it('appends the scenario param when a selection is set', () => {
     const state: SelectionMap = { 'GET /api/orders': 'error' };
     const out = maybeRewrite(u('/api/orders'), 'GET', ORIGIN, routes, state);
-    expect(out?.searchParams.get('apitemkin_scenario')).toBe('error');
+    expect(out?.searchParams.get('_scenario')).toBe('error');
     expect(out?.pathname).toBe('/api/orders');
   });
 
@@ -45,13 +45,13 @@ describe('maybeRewrite', () => {
     );
     expect(out?.searchParams.get('page')).toBe('2');
     expect(out?.searchParams.get('sort')).toBe('desc');
-    expect(out?.searchParams.get('apitemkin_scenario')).toBe('error');
+    expect(out?.searchParams.get('_scenario')).toBe('error');
   });
 
-  it('leaves a pre-existing apitemkin_scenario on the URL alone (URL wins)', () => {
+  it('leaves a pre-existing _scenario on the URL alone (URL wins)', () => {
     const state: SelectionMap = { 'GET /api/orders': 'error' };
     const out = maybeRewrite(
-      u('/api/orders?apitemkin_scenario=empty'),
+      u('/api/orders?_scenario=empty'),
       'GET',
       ORIGIN,
       routes,
@@ -61,10 +61,22 @@ describe('maybeRewrite', () => {
     expect(out).toBeNull();
   });
 
-  it('leaves an empty apitemkin_scenario param alone (still treated as explicit)', () => {
+  it('leaves a pre-existing deprecated apitemkin_scenario alone', () => {
     const state: SelectionMap = { 'GET /api/orders': 'error' };
     const out = maybeRewrite(
-      u('/api/orders?apitemkin_scenario='),
+      u('/api/orders?apitemkin_scenario=empty'),
+      'GET',
+      ORIGIN,
+      routes,
+      state,
+    );
+    expect(out).toBeNull();
+  });
+
+  it('leaves an empty _scenario param alone (still treated as explicit)', () => {
+    const state: SelectionMap = { 'GET /api/orders': 'error' };
+    const out = maybeRewrite(
+      u('/api/orders?_scenario='),
       'GET',
       ORIGIN,
       routes,
@@ -100,7 +112,7 @@ describe('maybeRewrite', () => {
     const r = [route('GET', '/api/users/:id', ['default', 'error'])];
     const state: SelectionMap = { 'GET /api/users/:id': 'error' };
     const out = maybeRewrite(u('/api/users/42'), 'GET', ORIGIN, r, state);
-    expect(out?.searchParams.get('apitemkin_scenario')).toBe('error');
+    expect(out?.searchParams.get('_scenario')).toBe('error');
   });
 
   it('respects method awareness when looking up the selection', () => {
@@ -114,7 +126,7 @@ describe('maybeRewrite', () => {
     ).toBeNull();
     expect(
       maybeRewrite(u('/api/users'), 'POST', ORIGIN, r, state)
-        ?.searchParams.get('apitemkin_scenario'),
+        ?.searchParams.get('_scenario'),
     ).toBe('error');
   });
 });

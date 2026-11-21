@@ -46,6 +46,16 @@ curl http://localhost:5173/api/users/42             # → mocks/users/[id].json
 
 Edit, add, or delete any file — changes apply without restarting the dev server.
 
+## Using an AI assistant
+
+Paste this into your `AGENTS.md`, `CLAUDE.md` or assistant instructions:
+
+```
+Mocks in this project use vite-plugin-apitemkin. Before writing or changing anything in `mocks/`, read `node_modules/vite-plugin-apitemkin/llms.txt`.
+```
+
+The guide ships in the npm package. You can also read it [on GitHub](packages/vite-plugin-apitemkin/llms.txt).
+
 ## Folder convention
 
 Five rules:
@@ -121,11 +131,13 @@ export default defineMock<Order[]>({
 
 Each variant can be a plain body, a `RichResponse`, or a handler function — same normalization rules as the function form. The `default` key is required.
 
-Activate per request with `?apitemkin_scenario=<name>`:
+Activate per request with `?_scenario=<name>`:
 
 ```sh
-curl 'http://localhost:5173/api/orders?apitemkin_scenario=error'   # → 500 JSON
+curl 'http://localhost:5173/api/orders?_scenario=error'   # → 500 JSON
 ```
+
+`?apitemkin_scenario=` still works but is deprecated and will be removed in 2.0.
 
 An unknown scenario silently falls back to `default` and logs a console warning. Discovery: `GET /_apitemkin/scenarios` returns a JSON list of every route with its kind (`'json' | 'code'`) and available scenario names. JSON files don't support scenarios — convert to `.ts` if you need variants.
 
@@ -152,9 +164,44 @@ export default defineMock<Profile>({
 
 Plain objects merge recursively; **arrays, `null`, primitives, and class instances replace wholesale** — there's no element-level array merging or property-level synthesis. `undefined` patch values preserve the base. Inputs are never mutated. For shallow merges, native `{ ...base, ...patch }` is the right tool; reach for `defineOverride` when nesting is involved. For status or header variants, wrap explicitly: `{ status: 500, body: defineOverride(base, patch) }`.
 
+### Generating data
+
+For a list endpoint, `many(count, make)` builds the records for you. `make` gets the 0-based index.
+
+```ts
+import { defineMock, many } from 'vite-plugin-apitemkin';
+
+export default defineMock(() =>
+  many(50, (i) => ({ id: i + 1, name: `User ${i + 1}` })),
+);
+```
+
+For realistic values, pair it with [Faker](https://fakerjs.dev). apitemkin doesn't bundle or require Faker. Install it yourself:
+
+```sh
+npm i -D @faker-js/faker
+```
+
+```ts
+import { defineMock, many } from 'vite-plugin-apitemkin';
+import { faker } from '@faker-js/faker';
+
+faker.seed(1);
+
+const users = many(50, (i) => ({
+  id: i + 1,
+  name: faker.person.fullName(),
+  email: faker.internet.email(),
+}));
+
+export default defineMock(() => users);
+```
+
+Seed Faker and build the list at module top. The data is generated once, so it's the same on every request and after reloads. `many` throws a `RangeError` if `count` isn't a non-negative integer.
+
 ## Dev-tools overlay
 
-Switching scenarios by hand-editing `?apitemkin_scenario=…` in URLs gets old fast. v1.2 ships an in-app overlay: a small launcher pinned to the bottom-right of your dev page opens a panel listing every discovered route with a per-route scenario picker.
+Switching scenarios by hand-editing `?_scenario=…` in URLs gets old fast. v1.2 ships an in-app overlay: a small launcher pinned to the bottom-right of your dev page opens a panel listing every discovered route with a per-route scenario picker.
 
 ```ts
 // vite.config.ts — overlay is on by default in dev
@@ -167,8 +214,8 @@ export default defineConfig({ plugins: [apitemkin({ devtools: false })] });
 How it works:
 
 - The plugin auto-injects a single `<script type="module" src="/_apitemkin/devtools.js">` tag into the host app's HTML during dev. `vite build` never sees it.
-- The overlay fetches `/_apitemkin/scenarios`, persists per-route picks in `localStorage` under `apitemkin:selections`, and patches `window.fetch` + `XMLHttpRequest.open` to append `apitemkin_scenario=<name>` on outgoing requests for matching routes. Cross-origin requests, non-matched URLs, and routes left at `default` are passed through unchanged.
-- **URL params win.** A request whose URL already has `apitemkin_scenario=…` is left alone — manual URL hacking and the panel coexist. The panel sets the route's *default* behavior across the app; an explicit per-call query param overrides for that one call.
+- The overlay fetches `/_apitemkin/scenarios`, persists per-route picks in `localStorage` under `apitemkin:selections`, and patches `window.fetch` + `XMLHttpRequest.open` to append `_scenario=<name>` on outgoing requests for matching routes. Cross-origin requests, non-matched URLs, and routes left at `default` are passed through unchanged.
+- **URL params win.** A request whose URL already has `_scenario=…` (or the deprecated `apitemkin_scenario=…`) is left alone — manual URL hacking and the panel coexist. The panel sets the route's *default* behavior across the app; an explicit per-call query param overrides for that one call.
 - The panel itself lives in a closed shadow root, so the host page's CSS can't bleed in and the overlay's CSS can't bleed out. The bundle is ≤ 15 kB minified.
 - JSON mocks have no scenarios, so they show an em-dash in the panel — switch to a `.ts` file with `defineMock(scenariosMap)` if you want variants.
 
@@ -183,16 +230,36 @@ The overlay is per-tab via `localStorage`; the dev server itself stays stateless
 | `urlPrefix` | `string`  | `'/api'`  | URL prefix to mount mocks under. Pass `''` for the host root.            |
 | `delay`     | `number`  | `150`     | Global artificial delay in ms before each response. Pass `0` to disable. Code mocks can override per-route via `RichResponse.delay`. |
 | `devtools`  | `boolean` | `true`    | Auto-inject the in-browser dev-tools overlay (launcher + scenario panel). Set `false` to opt out — the plugin then never touches the host HTML or registers `/_apitemkin/devtools.js`. |
+| `fallthrough` | `boolean` | `false` | Send requests under `urlPrefix` that match no mock on to Vite, e.g. to `server.proxy` and your real backend, instead of a JSON 404. |
 
-The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build`. Any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON response (not Vite's SPA HTML fallback), so API consumers always get JSON.
+The plugin is hardcoded to `apply: 'serve'` — Vite skips it during `vite build`. Unless `fallthrough` is on, any URL under `urlPrefix` that doesn't match a mock returns a `404` JSON response (not Vite's SPA HTML fallback), so API consumers always get JSON.
+
+## Mocking some endpoints, proxying the rest
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import apitemkin from 'vite-plugin-apitemkin';
+
+export default defineConfig({
+  server: { proxy: { '/api': 'http://localhost:8080' } },
+  plugins: [apitemkin({ fallthrough: true })],
+});
+```
+
+Mock a few endpoints; every other `/api` request goes to your real backend. If `fallthrough` is on and `server.proxy` is empty, the plugin logs a warning at startup.
 
 ## Roadmap
 
-| Version  | Status    | Theme                                                    |
-| -------- | --------- | -------------------------------------------------------- |
-| post-1.2 | maybe     | Catch-all params (`[...slug]`); WebSocket/SSE support    |
+| Version | Status  | Theme                                                                                  |
+| ------- | ------- | -------------------------------------------------------------------------------------- |
+| 1.3     | next    | Easier to start: AI guide, fall-through to a real backend, `many()` helper             |
+| 1.4     | planned | Redesigned dev-tools overlay                                                           |
+| 1.5     | planned | Mocks that remember: in-memory CRUD collections                                        |
+| 2.0     | planned | Remove deprecated `apitemkin_scenario` param                                           |
+| later   | maybe   | Docs site; HAR/OpenAPI import; catch-all params (`[...slug]`); WebSocket/SSE support   |
 
-See [CHANGELOG.md](./CHANGELOG.md) for shipped release notes.
+See [docs/development-plan.md](./docs/development-plan.md) for the plan and [CHANGELOG.md](./CHANGELOG.md) for shipped release notes.
 
 ## Repository layout
 

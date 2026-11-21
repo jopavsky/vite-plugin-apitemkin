@@ -57,7 +57,9 @@ export default defineMock({
 });
 ```
 
-Switch with `?apitemkin_scenario=error`. Discovery at `GET /_apitemkin/scenarios`.
+Switch with `?_scenario=error`. Discovery at `GET /_apitemkin/scenarios`.
+
+Set `fallthrough: true` to pass unmatched `/api` requests on to `server.proxy` instead of a JSON 404; see the full docs.
 
 For variants that are small tweaks of a base body, use `defineOverride` to deep-merge a partial:
 
@@ -75,9 +77,27 @@ export default defineMock({
 
 Arrays / `null` / primitives replace wholesale; `undefined` preserves the base; inputs are never mutated.
 
+To generate a list of records, use `many(count, make)`:
+
+```ts
+import { defineMock, many } from 'vite-plugin-apitemkin';
+
+export default defineMock(() => many(50, (i) => ({ id: i + 1, name: `User ${i + 1}` })));
+```
+
+## Using an AI assistant
+
+Paste this into your `AGENTS.md`, `CLAUDE.md` or assistant instructions:
+
+```
+Mocks in this project use vite-plugin-apitemkin. Before writing or changing anything in `mocks/`, read `node_modules/vite-plugin-apitemkin/llms.txt`.
+```
+
+The guide ships in the npm package. You can also read it [on GitHub](https://github.com/jopavsky/vite-plugin-apitemkin/blob/main/packages/vite-plugin-apitemkin/llms.txt).
+
 ## Dev-tools overlay (v1.2)
 
-Auto-injected in dev. Adds a launcher to the bottom-right of your app; the panel lists every discovered route with a per-route scenario picker. Selections persist per tab in `localStorage`; the plugin patches `fetch` and `XMLHttpRequest.open` to append `?apitemkin_scenario=<name>` on outgoing requests automatically. JSON mocks (no scenarios) show an em-dash. Opt out with `apitemkin({ devtools: false })`.
+Auto-injected in dev. Adds a launcher to the bottom-right of your app; the panel lists every discovered route with a per-route scenario picker. Selections persist per tab in `localStorage`; the plugin patches `fetch` and `XMLHttpRequest.open` to append `?_scenario=<name>` on outgoing requests automatically. JSON mocks (no scenarios) show an em-dash. Opt out with `apitemkin({ devtools: false })`.
 
 See the [GitHub README](https://github.com/jopavsky/vite-plugin-apitemkin#readme) for the full folder convention, scenarios, options table, and roadmap.
 

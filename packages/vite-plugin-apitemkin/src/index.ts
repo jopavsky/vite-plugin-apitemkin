@@ -2,17 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
-import { scanMocks, type MockRoute } from './scanner.js';
-import { matchRoute } from './matcher.js';
-import {
-  invokeHandler,
-  sleep,
-  type ApitemkinHandler,
-  type ApitemkinRequest,
-  type ScenariosHandler,
-  type ScenariosMap,
-  type ScenarioValue,
-} from './runtime.js';
+import { isMockFile } from './core/scanner.js';
+import { createMockEngine } from './core/engine.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
@@ -29,11 +20,17 @@ export interface ApitemkinOptions {
    * Auto-inject the in-browser dev-tools overlay into the host app's HTML
    * during dev. The overlay lists all discovered routes and lets you switch
    * the active scenario per route from a corner panel — no source changes,
-   * no manual `?apitemkin_scenario=` URLs. Only active in `serve` mode;
+   * no manual `?_scenario=` URLs. Only active in `serve` mode;
    * `vite build` never sees the injection.
    * Default: true.
    */
   devtools?: boolean;
+  /**
+   * Pass requests under `urlPrefix` that match no mock on to Vite (e.g.
+   * `server.proxy`) instead of answering 404.
+   * Default: false.
+   */
+  fallthrough?: boolean;
 }
 
 // Resolved at module load: the on-disk path of the precompiled overlay
@@ -51,10 +48,10 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
     urlPrefix = '/api',
     delay: globalDelay = 150,
     devtools = true,
+    fallthrough = false,
   } = options;
 
   let resolvedMocksDir = '';
-  let routes: MockRoute[] = [];
 
   return {
     name: 'vite-plugin-apitemkin',
@@ -79,9 +76,27 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       if (!enabled) return;
 
+      if (
+        fallthrough &&
+        urlPrefix &&
+        Object.keys(server.config.server.proxy ?? {}).length === 0
+      ) {
+        server.config.logger.warn(
+          `apitemkin: fallthrough is on but server.proxy is not configured, so unmatched ${urlPrefix || '/'} requests will reach Vite's own handlers (usually your index.html).`,
+        );
+      }
+
+      const engine = createMockEngine({
+        mocksDir: resolvedMocksDir,
+        urlPrefix,
+        delay: globalDelay,
+        fallthrough,
+        loadModule: (p) => server.ssrLoadModule(p),
+      });
+
       const rescan = async () => {
         try {
-          routes = await scanMocks(resolvedMocksDir, urlPrefix);
+          await engine.rescan();
         } catch (err) {
           server.config.logger.error(
             `apitemkin: ${(err as Error).message}`,
@@ -93,7 +108,7 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
 
       server.watcher.add(resolvedMocksDir);
       const handleChange = (file: string) => {
-        if (!file.endsWith('.json')) return;
+        if (!isMockFile(file)) return;
         if (!isInsideMocks(file, resolvedMocksDir)) return;
         rescan();
       };
@@ -139,103 +154,17 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
         const reqPath = (req.url ?? '').split('?')[0]!.split('#')[0]!;
         if (reqPath !== '/_apitemkin/scenarios') return next();
 
-        const entries = await Promise.all(
-          routes.map(async (route) => {
-            let scenarios: string[] = [];
-            if (route.kind === 'code') {
-              try {
-                const mod = await server.ssrLoadModule(route.filePath);
-                const handler = (mod as { default?: unknown }).default;
-                scenarios =
-                  (handler as { __apitemkin_scenarios?: string[] })
-                    ?.__apitemkin_scenarios ?? [];
-              } catch {
-                /* swallow — module load error shouldn't break discovery */
-              }
-            }
-            return {
-              method: route.method,
-              url: route.urlPattern,
-              kind: route.kind,
-              scenarios,
-            };
-          }),
-        );
+        const entries = await engine.discovery();
         res.setHeader('Content-Type', 'application/json');
         res.statusCode = 200;
         res.end(JSON.stringify(entries));
       });
 
       server.middlewares.use(async (req, res, next) => {
-        if (!req.url || !req.method) return next();
-
-        const match = matchRoute(routes, req.method, req.url, urlPrefix);
-        if (match) {
-          try {
-            if (match.route.kind === 'json') {
-              const body = await readFile(match.route.filePath, 'utf8');
-              if (globalDelay > 0) await sleep(globalDelay);
-              res.setHeader('Content-Type', 'application/json');
-              res.statusCode = 200;
-              res.end(body);
-            } else {
-              const result = await invokeHandler(
-                server,
-                match.route,
-                req,
-                match.params,
-              );
-              const effectiveDelay = result.delay ?? globalDelay;
-              if (effectiveDelay > 0) await sleep(effectiveDelay);
-              for (const [k, v] of Object.entries(result.headers)) {
-                res.setHeader(k, v);
-              }
-              res.statusCode = result.status;
-              const hasContentType = res.getHeader('content-type') !== undefined;
-              let payload: string | Buffer;
-              if (typeof result.body === 'string') {
-                if (!hasContentType) {
-                  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-                }
-                payload = result.body;
-              } else if (Buffer.isBuffer(result.body)) {
-                payload = result.body;
-              } else {
-                if (!hasContentType) {
-                  res.setHeader('Content-Type', 'application/json');
-                }
-                payload = JSON.stringify(result.body) ?? '';
-              }
-              res.end(payload);
-            }
-          } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: (err as Error).message }));
-          }
-          return;
-        }
-
-        // Claim the prefix: any unmatched URL under it gets a 404 (not SPA fallback).
-        if (urlPrefix && isUnderPrefix(req.url, urlPrefix)) {
-          res.statusCode = 404;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(
-            JSON.stringify({ error: `No mock for ${req.method} ${req.url}` }),
-          );
-          return;
-        }
-
-        next();
+        if (!(await engine.handle(req, res))) next();
       });
     },
   };
-}
-
-function isUnderPrefix(url: string, prefix: string): boolean {
-  const path = url.split('?')[0]!.split('#')[0]!;
-  const norm = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-  return path === norm || path.startsWith(norm + '/');
 }
 
 function isInsideMocks(file: string, mocksDir: string): boolean {
@@ -244,25 +173,19 @@ function isInsideMocks(file: string, mocksDir: string): boolean {
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 }
 
-function extractScenario(url: string): string | undefined {
-  const q = url.indexOf('?');
-  if (q === -1) return undefined;
-  const queryStr = url.slice(q + 1).split('#')[0]!;
-  const params = new URLSearchParams(queryStr);
-  return params.get('apitemkin_scenario') ?? undefined;
-}
-
 export { apitemkin };
-export { scanMocks } from './scanner.js';
+export { scanMocks } from './core/scanner.js';
 export type {
   HttpMethod,
   MockRoute,
   MockRouteKind,
   PathSegment,
-} from './scanner.js';
-export { matchRoute } from './matcher.js';
-export type { MatchResult } from './matcher.js';
-export { defineOverride } from './runtime.js';
+} from './core/scanner.js';
+export { matchRoute } from './core/matcher.js';
+export type { MatchResult } from './core/matcher.js';
+export { defineOverride } from './core/runtime.js';
+export { defineMock } from './core/define-mock.js';
+export { many } from './core/many.js';
 export type {
   ApitemkinHandler,
   ApitemkinRequest,
@@ -271,74 +194,4 @@ export type {
   ScenarioValue,
   ScenariosMap,
   ScenariosHandler,
-} from './runtime.js';
-
-/**
- * Define a mock handler. Accepts one of two shapes:
- *
- * 1. **A handler function** — `(req) => body | rich response | Promise<...>`.
- *    Identity at runtime; gives TypeScript full inference on the response.
- *
- *    ```ts
- *    export default defineMock<User>(({ params }) => ({
- *      id: Number(params.id),
- *      name: 'Ada',
- *    }));
- *    ```
- *
- * 2. **A scenarios map** — `{ default, [name]: ... }` for multiple named
- *    response variants. The `default` key is required. Active variant is
- *    picked per request via `?apitemkin_scenario=<name>`. Each value can
- *    be a plain body, a `RichResponse`, or a handler function.
- *
- *    ```ts
- *    export default defineMock<User[]>({
- *      default: [{ id: 1, name: 'Ada' }],
- *      empty:   [],
- *      error:   { status: 500, body: { error: 'oops' } },
- *      slow:    { delay: 2000, body: [{ id: 1, name: 'Ada' }] },
- *      computed: ({ params }) => [{ id: Number(params.id), name: 'Ada' }],
- *    });
- *    ```
- */
-export function defineMock<TBody = unknown>(
-  handler: ApitemkinHandler<TBody>,
-): ApitemkinHandler<TBody>;
-export function defineMock<TBody = unknown>(
-  scenarios: ScenariosMap<TBody>,
-): ScenariosHandler<TBody>;
-export function defineMock<TBody = unknown>(
-  arg: ApitemkinHandler<TBody> | ScenariosMap<TBody>,
-): ApitemkinHandler<TBody> {
-  if (typeof arg === 'function') {
-    return arg;
-  }
-
-  const scenarios = arg;
-  const handler = (async (req: ApitemkinRequest) => {
-    const requested = extractScenario(req.url);
-    let chosen: ScenarioValue<TBody>;
-
-    if (
-      requested &&
-      Object.prototype.hasOwnProperty.call(scenarios, requested)
-    ) {
-      chosen = scenarios[requested]!;
-    } else {
-      if (requested) {
-        console.warn(
-          `apitemkin: scenario '${requested}' not defined for ${req.method} ${req.url}, falling back to default`,
-        );
-      }
-      chosen = scenarios.default;
-    }
-
-    if (typeof chosen === 'function') {
-      return (chosen as ApitemkinHandler<TBody>)(req);
-    }
-    return chosen;
-  }) as ScenariosHandler<TBody>;
-
-  handler.__apitemkin_scenarios = Object.keys(scenarios);
-  return handler;
-}
+} from './core/runtime.js';

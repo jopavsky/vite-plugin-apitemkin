@@ -134,4 +134,35 @@ describe('apitemkin HMR for mock changes', () => {
     await rm(join(root, 'mocks/stable.json'));
     await pollFetch(`${baseUrl}/api/stable`, (r) => r.status === 404);
   });
+
+  it('picks up an added code mock without a restart', async () => {
+    expect((await fetch(`${baseUrl}/api/addedcode`)).status).toBe(404);
+    await write('mocks/addedcode.ts', `export default () => ({ code: true });`);
+    const res = await pollFetch(`${baseUrl}/api/addedcode`, (r) => r.status === 200);
+    expect(await res.json()).toEqual({ code: true });
+  });
+
+  it('picks up a deleted code mock without a restart', async () => {
+    await write('mocks/gonecode.ts', `export default () => ({ here: true });`);
+    await pollFetch(`${baseUrl}/api/gonecode`, (r) => r.status === 200);
+    await rm(join(root, 'mocks/gonecode.ts'));
+    await pollFetch(`${baseUrl}/api/gonecode`, (r) => r.status === 404);
+  });
+
+  it('picks up a code mock added in a new nested folder', async () => {
+    await write('mocks/fresh/[id].ts', `export default ({ params }: any) => ({ id: params.id });`);
+    const res = await pollFetch(`${baseUrl}/api/fresh/7`, (r) => r.status === 200);
+    expect(await res.json()).toEqual({ id: '7' });
+  });
+
+  it('serves new content when a deleted code mock is re-added', async () => {
+    await write('mocks/again.ts', `export default () => ({ v: 1 });`);
+    await pollFetch(`${baseUrl}/api/again`, (r) => r.status === 200);
+    await rm(join(root, 'mocks/again.ts'));
+    await pollFetch(`${baseUrl}/api/again`, (r) => r.status === 404);
+    await write('mocks/again.ts', `export default () => ({ v: 2 });`);
+    const res = await pollFetch(`${baseUrl}/api/again`, async (r) =>
+      r.status === 200 && ((await r.json()) as { v: number }).v === 2);
+    expect(await res.json()).toEqual({ v: 2 });
+  });
 });

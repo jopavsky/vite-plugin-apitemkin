@@ -44,6 +44,7 @@ For per-package work, `cd` into the package or use `npm <script> -w <package-nam
 - Built with **tsdown** (Rolldown-based) to ESM + `.d.ts` (`dist/`).
 - `verbatimModuleSyntax: true` is on globally — type-only imports must use `import type` or the inline `type` keyword.
 - Use `import type { Plugin } from 'vite'` rather than redeclaring Vite types.
+- No `vite` imports (including type-only) under `packages/vite-plugin-apitemkin/src/core/`. Vite-specific code lives in `src/index.ts`.
 
 ## Release process
 
@@ -62,4 +63,4 @@ npm run build
 npm pack --dry-run
 ```
 
-The tarball should contain only `dist/`, `README.md`, `LICENSE`, and `package.json`.
+The tarball should contain only `dist/`, `README.md`, `LICENSE`, `llms.txt`, and `package.json`.

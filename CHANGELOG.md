@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `llms.txt`, a guide for AI coding assistants on writing apitemkin mocks,
+  shipped in the npm package.
+- `many(count, make)` helper for generating lists of records. Zero
+  dependencies; pairs with your own `@faker-js/faker` for realistic values.
+- `fallthrough` option (default `false`). When `true`, requests under
+  `urlPrefix` that match no mock go on to Vite (e.g. `server.proxy`) instead
+  of a JSON 404. A startup warning is logged if it is on and `server.proxy`
+  is not configured.
+- `?_scenario=<name>`, a shorter way to pick a scenario. The overlay now uses it. Like the old name, it is removed from `req.query` before handlers run.
+
+### Deprecated
+- `?apitemkin_scenario=`. It still works throughout 1.x and will be removed in 2.0. If both are present, `_scenario` wins.
+
+### Fixed
+- Adding or deleting a code mock (`.ts`, `.js`, `.mjs`) is now picked up
+  without restarting the dev server. Previously only `.json` changes
+  triggered a rescan.
+
 ## [1.2.0] — 2026-05-08
 
 ### Added

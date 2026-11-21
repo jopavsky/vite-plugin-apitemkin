@@ -1,0 +1,187 @@
+# vite-plugin-apitemkin: guide for AI assistants
+
+vite-plugin-apitemkin is a dev-only Vite plugin that serves mock API responses from a folder. By default the folder is `mocks/` (next to `vite.config.ts`) and it is mounted at `/api`. The folder is the API: a file's path is its URL. There is no route config. To add or change an endpoint, add or edit a file in `mocks/`. Changes apply without restarting the dev server.
+
+## Folder convention
+
+1. File path becomes URL path. `mocks/users.json` serves `GET /api/users`. `mocks/users/posts.json` serves `GET /api/users/posts`.
+2. The filename suffix is the method. `users.post.json` is POST, `users.delete.ts` is DELETE. No suffix means GET.
+3. `[name]` segments are dynamic params, in folders (`users/[id]/posts.json`) and basenames (`[id].json`). `[id]` becomes `:id`.
+4. `index.{method}?.<ext>` inside a folder uses the folder name as the URL segment. `users/index.json` is `/api/users`. `users/index.post.json` is `POST /api/users`.
+5. Literal segments beat params. With `users/me.json` and `users/[id].json`, `GET /api/users/me` hits the literal file.
+
+A file `X.<ext>` and a folder `X/` cannot be siblings. The dev server logs `apitemkin: ambiguous mock layout ...` and keeps serving the last good route table (empty at startup). Fix it by moving the file into the folder as an index file: `mv "mocks/users.json" "mocks/users/index.json"`.
+
+## JSON mocks vs code mocks
+
+- A `.json` file is returned as-is with status 200. Use it for static data. JSON mocks have no scenarios.
+- A `.ts`, `.js` or `.mjs` file is a code mock. Its default export computes the response. Use it for params, status codes, delays, variants and generated data.
+- Never put a JSON mock and a code mock on the same URL and method. That is an error. Pick one.
+
+## defineMock: handler form
+
+```ts
+// mocks/users/[id].ts
+import { defineMock } from 'vite-plugin-apitemkin';
+
+interface User {
+  id: number;
+  name: string;
+}
+
+export default defineMock<User>(({ params, query }) => ({
+  id: Number(params.id),
+  name: query.expand === 'true' ? 'Ada Lovelace' : 'Ada',
+}));
+```
+
+The handler gets a request context with `method`, `url`, `params`, `query`, `body` and `headers`. It can be async.
+
+It returns either:
+
+- A plain body. Sent with status 200.
+- A rich response `{ status?, headers?, body, delay? }`. `delay` is in milliseconds and overrides the global delay for this response. Use it for non-200 status, custom headers or a per-route delay.
+
+```ts
+// mocks/users/index.post.ts
+import { defineMock } from 'vite-plugin-apitemkin';
+
+export default defineMock(({ body }) => ({
+  status: 201,
+  headers: { Location: '/api/users/1' },
+  body: { id: 1, created: body },
+  delay: 400,
+}));
+```
+
+Serialization:
+
+- A string body is sent as `text/plain`.
+- A `Buffer` body is sent as-is, with no default `Content-Type`. Set one via the rich-response `headers`.
+- Anything else is sent as `JSON.stringify` output (`application/json`).
+- Set `headers` in a rich response to override the content type.
+
+A thrown error (or rejected promise) becomes a `500` JSON response `{ error }`.
+
+## defineMock: scenarios form
+
+Pass a map instead of a function to expose named variants of one endpoint. The `default` key is required. Each variant is a plain body, a rich response or a handler function.
+
+```ts
+// mocks/orders/index.ts
+import { defineMock } from 'vite-plugin-apitemkin';
+
+interface Order {
+  id: number;
+  item: string;
+}
+
+export default defineMock<Order[] | { error: string }>({
+  default: [{ id: 1, item: 'Lovelace pen' }],
+  empty: [],
+  error: { status: 500, body: { error: 'Order service unavailable' } },
+  slow: { delay: 2000, body: [{ id: 1, item: 'eventually arrives' }] },
+  computed: ({ query }) => [{ id: Number(query.page) || 1, item: 'computed' }],
+});
+```
+
+Pick a variant per request with `?_scenario=<name>`, for example `GET /api/orders?_scenario=error`. An unknown name falls back to `default` and logs a warning. `GET /_apitemkin/scenarios` lists every route and its scenario names. The dev-tools overlay in the browser also switches scenarios per route.
+
+The older `?apitemkin_scenario=` name still works but is deprecated. Write `_scenario` in new code and leave existing `apitemkin_scenario` URLs working.
+
+`defineOverride(base, patch)` deep-merges a partial patch onto a base object. Use it for variants that are small tweaks of one body. Plain objects merge recursively. Arrays, `null`, primitives and class instances replace wholesale. Inputs are never mutated.
+
+```ts
+// mocks/profile.ts
+import { defineMock, defineOverride } from 'vite-plugin-apitemkin';
+
+interface Profile {
+  id: number;
+  name: string;
+  verified: boolean;
+  address: { city: string; country: string };
+}
+
+const base: Profile = {
+  id: 1,
+  name: 'Ada',
+  verified: true,
+  address: { city: 'London', country: 'UK' },
+};
+
+export default defineMock<Profile>({
+  default: base,
+  unverified: defineOverride(base, { verified: false }),
+  inParis: defineOverride(base, { address: { city: 'Paris' } }),
+});
+```
+
+## many(): generated lists
+
+`many(count, make)` returns an array of `count` items. `make` gets the 0-based index. It throws a `RangeError` if `count` is not a non-negative integer.
+
+```ts
+// mocks/users/index.ts
+import { defineMock, many } from 'vite-plugin-apitemkin';
+
+export default defineMock(() =>
+  many(50, (i) => ({ id: i + 1, name: `User ${i + 1}` })),
+);
+```
+
+For realistic values use Faker. apitemkin does not bundle it. Seed it and build the list once at module top, then return that list from the handler. The data is then identical on every request and after reloads. Do not call `faker` inside the handler.
+
+```ts
+// requires: npm i -D @faker-js/faker
+// mocks/people/index.ts
+import { defineMock, many } from 'vite-plugin-apitemkin';
+import { faker } from '@faker-js/faker';
+
+faker.seed(1);
+
+const users = many(50, (i) => ({
+  id: i + 1,
+  name: faker.person.fullName(),
+  email: faker.internet.email(),
+}));
+
+export default defineMock(() => users);
+```
+
+## Options
+
+Pass to `apitemkin({ ... })` in `vite.config.ts`.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | Turn the plugin off without removing it. |
+| `mocksDir` | `string` | `'mocks'` | Folder to scan, relative to the Vite root. |
+| `urlPrefix` | `string` | `'/api'` | URL prefix for all mocks. `''` mounts at the host root. |
+| `delay` | `number` | `150` | Global delay in ms before each response. `0` disables it. |
+| `devtools` | `boolean` | `true` | Inject the in-browser scenario switcher. |
+| `fallthrough` | `boolean` | `false` | Pass unmatched requests under `urlPrefix` on to Vite (for example `server.proxy`) instead of a JSON 404. |
+
+To mock a few endpoints and proxy the rest to a real backend:
+
+```ts
+// vite.config.ts
+import apitemkin from 'vite-plugin-apitemkin';
+
+export default {
+  server: { proxy: { '/api': 'http://localhost:8080' } },
+  plugins: [apitemkin({ fallthrough: true })],
+};
+```
+
+With `fallthrough: true` and no `server.proxy`, the plugin logs a warning at startup.
+
+## Common mistakes
+
+- A file and a folder with the same name (`users.json` and `users/`). The dev server logs an `ambiguous mock layout` error and serves no routes until you fix it. Move the file to `users/index.json`.
+- A JSON mock and a code mock for the same URL and method. This is an error. Keep one.
+- A scenarios map without a `default` key. `default` is required.
+- Expecting state to persist between requests. apitemkin keeps no state for you, so a POST does not change what a later GET returns. Don't rely on module variables for data that must persist: they reset whenever the file or the server reloads.
+- Sending a non-JSON request body and reading `body`. Only `application/json` bodies are parsed. Other content types leave `body` as `undefined`.
+- Calling `faker` inside the handler. The data changes on every request. Seed and build the list at module top.
+- Using scenarios in a `.json` file. Convert the file to `.ts`.
+- Forgetting `status` for errors. Returning `{ error: '...' }` alone is a 200. Return `{ status: 404, body: { error: '...' } }`.

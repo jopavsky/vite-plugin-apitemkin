@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { scanMocks } from '../src/scanner.js';
+import { scanMocks, isMockFile } from '../src/scanner.js';
 
 let dir: string;
 
@@ -359,4 +359,9 @@ describe('scanMocks', () => {
       );
     });
   });
+});
+
+it('isMockFile recognizes every supported extension and nothing else', () => {
+  for (const f of ['a.json', 'a.ts', 'a.js', 'a.mjs', 'x/[id].post.ts']) expect(isMockFile(f)).toBe(true);
+  for (const f of ['a.md', 'a.tsx', 'a.cjs', 'a.json.bak', 'a']) expect(isMockFile(f)).toBe(false);
 });
