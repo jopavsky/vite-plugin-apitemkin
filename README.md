@@ -201,7 +201,7 @@ Seed Faker and build the list at module top. The data is generated once, so it's
 
 ## Dev-tools overlay
 
-Switching scenarios by hand-editing `?_scenario=…` in URLs gets old fast. v1.2 ships an in-app overlay: a small launcher pinned to the bottom-right of your dev page opens a panel listing every discovered route with a per-route scenario picker.
+Switching scenarios by hand-editing `?_scenario=…` in URLs gets old fast. The overlay puts a small launcher in a corner of your dev page. It tells you at a glance what's overridden (`orders: error`, or `2 overridden`), and opens a panel listing every discovered route with a per-route scenario picker.
 
 ```ts
 // vite.config.ts — overlay is on by default in dev
@@ -216,8 +216,17 @@ How it works:
 - The plugin auto-injects a single `<script type="module" src="/_apitemkin/devtools.js">` tag into the host app's HTML during dev. `vite build` never sees it.
 - The overlay fetches `/_apitemkin/scenarios`, persists per-route picks in `localStorage` under `apitemkin:selections`, and patches `window.fetch` + `XMLHttpRequest.open` to append `_scenario=<name>` on outgoing requests for matching routes. Cross-origin requests, non-matched URLs, and routes left at `default` are passed through unchanged.
 - **URL params win.** A request whose URL already has `_scenario=…` (or the deprecated `apitemkin_scenario=…`) is left alone — manual URL hacking and the panel coexist. The panel sets the route's *default* behavior across the app; an explicit per-call query param overrides for that one call.
-- The panel itself lives in a closed shadow root, so the host page's CSS can't bleed in and the overlay's CSS can't bleed out. The bundle is ≤ 15 kB minified.
-- JSON mocks have no scenarios, so they show an em-dash in the panel — switch to a `.ts` file with `defineMock(scenariosMap)` if you want variants.
+- The panel itself lives in a closed shadow root, so the host page's CSS can't bleed in and the overlay's CSS can't bleed out. The bundle is ≤ 150 kB minified (about 35 kB today).
+- JSON mocks have no scenarios, so they show no picker — switch to a `.ts` file with `defineMock(scenariosMap)` if you want variants.
+
+What the panel does:
+
+- **Overrides stand out.** A route switched away from `default` shows its scenario in a pale mustard pill; nothing else in the list is mustard. The footer filters to just those routes (`Show 2 overridden`) and resets them (`Reset scenarios`).
+- **Find routes fast.** Routes are grouped by folder, and a search field appears once you have 8 or more (`/` focuses it).
+- **Request log.** Each row ends in a log button. It opens every recent request to that route, newest first: the scenario that answered, status and time, a source tag (`via _scenario param` when the request carried its own `?_scenario=`, `via picker` when the scenario came from this panel), a waiting time for slow requests, and `not in mocks → default` for names your mocks don't define. The button turns red when the route's last request failed unexpectedly (a 5xx on a request that carried no scenario). A request that sends its own `?_scenario=` still wins, but the picker stays yours for every request that doesn't.
+- **Keyboard.** `Alt+Shift+M` (`⌥⇧M` on macOS) opens and closes the panel from anywhere; arrow keys move through the list; `Esc` closes.
+- **Fits your page.** Drag the panel's edge to resize it (or focus the grip and use the arrow keys). Move the launcher to any corner by dragging it, or with `Alt+Shift+arrow keys`. Both are remembered.
+- **Light or dark.** It follows your OS setting by default. The theme button in the panel header switches between Auto, Light and Dark, and remembers your choice.
 
 The overlay is per-tab via `localStorage`; the dev server itself stays stateless. State that points at routes or scenario names that no longer exist is pruned silently on the next discovery.
 

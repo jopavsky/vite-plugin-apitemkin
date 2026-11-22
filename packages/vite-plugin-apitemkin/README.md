@@ -95,9 +95,9 @@ Mocks in this project use vite-plugin-apitemkin. Before writing or changing anyt
 
 The guide ships in the npm package. You can also read it [on GitHub](https://github.com/jopavsky/vite-plugin-apitemkin/blob/main/packages/vite-plugin-apitemkin/llms.txt).
 
-## Dev-tools overlay (v1.2)
+## Dev-tools overlay
 
-Auto-injected in dev. Adds a launcher to the bottom-right of your app; the panel lists every discovered route with a per-route scenario picker. Selections persist per tab in `localStorage`; the plugin patches `fetch` and `XMLHttpRequest.open` to append `?_scenario=<name>` on outgoing requests automatically. JSON mocks (no scenarios) show an em-dash. Opt out with `apitemkin({ devtools: false })`.
+Auto-injected in dev. A launcher in a corner of your app shows what's overridden; the panel lists every route with a per-route scenario picker, search, folder groups and a per-route request log. `Alt+Shift+M` (`⌥⇧M` on macOS) toggles it. Selections persist per tab in `localStorage`; the plugin patches `fetch` and `XMLHttpRequest.open` to append `?_scenario=<name>` on outgoing requests automatically. Opt out with `apitemkin({ devtools: false })`.
 
 See the [GitHub README](https://github.com/jopavsky/vite-plugin-apitemkin#readme) for the full folder convention, scenarios, options table, and roadmap.
 

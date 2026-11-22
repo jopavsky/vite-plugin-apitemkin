@@ -85,7 +85,7 @@ export default defineMock<Order[] | { error: string }>({
 });
 ```
 
-Pick a variant per request with `?_scenario=<name>`, for example `GET /api/orders?_scenario=error`. An unknown name falls back to `default` and logs a warning. `GET /_apitemkin/scenarios` lists every route and its scenario names. The dev-tools overlay in the browser also switches scenarios per route.
+Pick a variant per request with `?_scenario=<name>`, for example `GET /api/orders?_scenario=error`. An unknown name falls back to `default` and logs a warning. `GET /_apitemkin/scenarios` lists every route and its scenario names. The dev-tools overlay in the browser also switches scenarios per route (toggle it with Alt+Shift+M) and copies each route's URL with its `?_scenario=`, ready to paste into a test.
 
 The older `?apitemkin_scenario=` name still works but is deprecated. Write `_scenario` in new code and leave existing `apitemkin_scenario` URLs working.
 

@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsdown';
+import { inlineCssPlugin } from './build/inline-css-plugin.ts';
 
 export default defineConfig([
   // Node entry — the published plugin (ESM only, with type definitions).
@@ -23,6 +24,8 @@ export default defineConfig([
     sourcemap: false,
     dts: false,
     clean: false,
+    // `import css from './styles.css?inline'` → minified string.
+    plugins: [inlineCssPlugin()],
     // The IIFE has no exports (it's purely side-effecting), but Rolldown
     // warns if `output.name` is missing. Set a name to silence the warning.
     outputOptions: { entryFileNames: '[name].js', name: 'apitemkinDevtools' },

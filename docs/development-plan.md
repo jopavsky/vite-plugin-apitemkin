@@ -60,7 +60,7 @@ From `PRODUCT.md` and the codebase:
   - **Every current export.** That includes the ones the README doesn't document: `scanMocks`, `matchRoute`, `MockRoute`, `MockRouteKind`, `MatchResult` and `PathSegment`.
   - **The discovery endpoint's response shape.**
   - **What doesn't count as breaking:** adding a new value to a union such as `MockRouteKind` or the discovery `kind`. It's additive and gets called out in the CHANGELOG.
-- The overlay renders in a closed shadow root, follows the OS color scheme, loads nothing from the network, and fits a JS+CSS budget of 15 kB minified or less (ships at 12.26 KB today).
+- The overlay renders in a closed shadow root, follows the OS color scheme unless the user picks a theme in the panel, loads nothing from the network, and fits a JS+CSS budget of 150 kB minified or less (raised from 15 kB on 2026-11-22 for the 1.4 redesign).
 - The file system is the only route spec; no second place declares routes.
 - Errors name the files involved and the exact fix.
 

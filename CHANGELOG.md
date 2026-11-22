@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Overlay rows do one job: method, path, scenario picker and a request-log button on a single line. The log lists every recent request to the route (scenario that answered, status and time, a source tag (`via _scenario param` when the request carried its own `?_scenario=`, `via picker` when the scenario came from this panel), not-in-mocks warning); the button turns red when the last request failed unexpectedly. The picker is never locked by a request's `?_scenario=`.
+- Overlay look: an active scenario is a pale mustard tint instead of a full fill; text is 14px (was 13px) with a wider inset from the panel edge; the per-row copy-URL button is removed; the dark header is navy again; the header button reads "Rescan mocks".
+- Redesigned dev-tools overlay. The launcher now shows what's overridden
+  even with the panel closed (`orders: error`, `2 overridden`), and the
+  panel uses a calm navy-and-frost look where mustard marks only
+  overridden routes.
+- Overlay panel: routes grouped by folder, search at 8+ routes (`/`
+  focuses it).
+- Overlay keyboard: `Alt+Shift+M` (`⌥⇧M` on macOS) toggles the panel,
+  arrow keys move through the list, `Esc` closes. The panel is resizable
+  and the launcher can move to any corner (drag, or `Alt+Shift+arrows`);
+  both are remembered. Dark mode and Windows high-contrast are supported.
+- "Reset all" is renamed "Reset scenarios" and moved to the footer.
+- Overlay theme follows the OS by default; a header button switches Auto / Light / Dark and remembers the choice.
+- Overlay bundle budget raised from 15 kB to 150 kB minified.
+
 ## [1.3.0] — 2026-11-21
 
 ### Added

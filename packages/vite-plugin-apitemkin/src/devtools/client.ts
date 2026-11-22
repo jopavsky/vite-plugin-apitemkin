@@ -14,7 +14,9 @@ import {
 import {
   LEGACY_SCENARIO_PARAM,
   SCENARIO_PARAM,
+  readScenarioParam,
 } from '../core/scenario-param.js';
+import { createActivity, type Activity } from './activity.js';
 import { mountPanel, type DiscoveryStatus } from './ui.js';
 
 const DISCOVERY_URL = '/_apitemkin/scenarios';
@@ -31,12 +33,15 @@ function bootstrap(): void {
   let routes: RouteEntry[] = [];
   let status: DiscoveryStatus = 'loading';
   let lastError: string | null = null;
-  const state: SelectionMap = loadState(window.localStorage);
+  // A blocked localStorage accessor throws SecurityError; read it once, guarded.
+  const storage = safeStorage();
+  const state: SelectionMap = loadState(storage);
 
   let discoveryReady: Promise<void> = runDiscovery();
+  const activity = createActivity();
 
-  installFetchPatch(originalFetch, () => discoveryReady, () => routes, state);
-  installXHRPatch(() => routes, state);
+  installFetchPatch(originalFetch, () => discoveryReady, () => routes, state, activity);
+  installXHRPatch(() => routes, state, activity);
 
   const panel = mountPanel({
     state,
@@ -48,8 +53,11 @@ function bootstrap(): void {
       return discoveryReady;
     },
     onChange: () => {
-      saveState(window.localStorage, state);
+      saveState(storage, state);
     },
+    activity,
+    origin: window.location.origin,
+    storage,
   });
 
   // Re-render once discovery resolves so the table swaps from the
@@ -63,7 +71,7 @@ function bootstrap(): void {
       .then((discovered) => {
         routes = discovered;
         pruneState(state, routes);
-        saveState(window.localStorage, state);
+        saveState(storage, state);
         status = routes.length === 0 ? 'empty' : 'ok';
       })
       .catch((err: unknown) => {
@@ -72,6 +80,14 @@ function bootstrap(): void {
         status = 'error';
         lastError = message;
       });
+  }
+}
+
+function safeStorage(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
   }
 }
 
@@ -140,11 +156,52 @@ export function maybeRewrite(
   return next;
 }
 
+/**
+ * Start activity for a same-origin request that matches a discovered route.
+ * Call with the URL as the app wrote it (before the panel rewrites it), so
+ * an explicit `_scenario` reads as "URL param wins". Returns null — and
+ * records nothing — for anything else.
+ */
+export function trackRequest(
+  activity: Activity,
+  routes: readonly RouteEntry[],
+  method: string,
+  url: URL,
+  origin: string,
+  state: SelectionMap = {},
+): number | null {
+  if (url.origin !== origin) return null;
+  const route = findRoute(routes, method, url.pathname);
+  if (!route) return null;
+  const key = selectionKey(route.method, route.url);
+  const asked = readScenarioParam(url.searchParams) || null;
+  const known = asked ? (route.scenarios?.includes(asked) ?? false) : true;
+  // What the server will answer with: a defined page param, else default for an
+  // unknown name (the server falls back), else the panel's pick.
+  const served = asked ? (known ? asked : 'default') : (state[key] ?? 'default');
+  return activity.start(key, asked, !!state[key], known, served);
+}
+
+function settle(activity: Activity, token: number | null, res: Promise<Response>): Promise<Response> {
+  if (token === null) return res;
+  return res.then(
+    (r) => {
+      activity.finish(token, r.status);
+      return r;
+    },
+    (err: unknown) => {
+      activity.finish(token, 0);
+      throw err;
+    },
+  );
+}
+
 function installFetchPatch(
   originalFetch: typeof fetch,
   ready: () => Promise<unknown>,
   getRoutes: () => RouteEntry[],
   state: SelectionMap,
+  activity: Activity,
 ): void {
   window.fetch = async function apitemkinFetch(input, init) {
     await ready();
@@ -165,6 +222,7 @@ function installFetchPatch(
       return originalFetch(input, init);
     }
 
+    const token = trackRequest(activity, getRoutes(), method, url, window.location.origin, state);
     const rewritten = maybeRewrite(
       url,
       method,
@@ -172,21 +230,22 @@ function installFetchPatch(
       getRoutes(),
       state,
     );
-    if (!rewritten) return originalFetch(input, init);
+    if (!rewritten) return settle(activity, token, originalFetch(input, init));
 
     if (typeof input === 'string') {
-      return originalFetch(rewritten.href, init);
+      return settle(activity, token, originalFetch(rewritten.href, init));
     }
     if (input instanceof URL) {
-      return originalFetch(rewritten, init);
+      return settle(activity, token, originalFetch(rewritten, init));
     }
-    return originalFetch(new Request(rewritten.href, input), init);
+    return settle(activity, token, originalFetch(new Request(rewritten.href, input), init));
   };
 }
 
 function installXHRPatch(
   getRoutes: () => RouteEntry[],
   state: SelectionMap,
+  activity: Activity,
 ): void {
   const originalOpen = XMLHttpRequest.prototype.open;
   // XHR.open is synchronous, so we can't await discovery here. Requests
@@ -203,6 +262,23 @@ function installXHRPatch(
     let target: string | URL = url;
     try {
       const parsed = new URL(url.toString(), window.location.href);
+      // Activity runs from send (loadstart) to loadend, measured against
+      // the URL as the app wrote it.
+      let token: number | null = null;
+      this.addEventListener(
+        'loadstart',
+        () => {
+          token = trackRequest(activity, getRoutes(), method, parsed, window.location.origin, state);
+        },
+        { once: true },
+      );
+      this.addEventListener(
+        'loadend',
+        () => {
+          if (token !== null) activity.finish(token, this.status);
+        },
+        { once: true },
+      );
       const rewritten = maybeRewrite(
         parsed,
         method,

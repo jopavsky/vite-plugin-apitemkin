@@ -15,9 +15,9 @@ export function selectionKey(method: string, urlPattern: string): string {
   return `${method.toUpperCase()} ${urlPattern}`;
 }
 
-export function loadState(storage: Storage): SelectionMap {
+export function loadState(storage: Storage | null): SelectionMap {
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = storage?.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
@@ -31,12 +31,12 @@ export function loadState(storage: Storage): SelectionMap {
   }
 }
 
-export function saveState(storage: Storage, state: SelectionMap): void {
+export function saveState(storage: Storage | null, state: SelectionMap): void {
   try {
     if (Object.keys(state).length === 0) {
-      storage.removeItem(STORAGE_KEY);
+      storage?.removeItem(STORAGE_KEY);
     } else {
-      storage.setItem(STORAGE_KEY, JSON.stringify(state));
+      storage?.setItem(STORAGE_KEY, JSON.stringify(state));
     }
   } catch {
     // localStorage disabled / quota — degrade silently.

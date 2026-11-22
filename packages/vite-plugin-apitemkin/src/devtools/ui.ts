@@ -1,514 +1,428 @@
-// Launcher + slide-in panel for the apitemkin dev-tools overlay.
-// Renders into a closed shadow root attached to a host <div> appended
-// to <body>. All styles scoped inside the shadow; the host page's CSS
-// can't bleed in and the overlay's CSS can't bleed out.
+// Shell of the apitemkin dev-tools overlay: launcher, panel frame, header,
+// footer, discovery states, live region and the global shortcut. Renders
+// into a closed shadow root so host CSS can't reach in (or out).
 //
-// State is owned by the bootstrap (in client.ts) — this module reads
-// it via getters, mutates it through `setSelection`, and tells the
-// caller when something changed via `onChange`.
+// State is owned by the bootstrap (client.ts); this module reads it through
+// PanelHooks, mutates selections in place and calls onChange to persist.
 
+import css from './styles.css?inline';
 import type { RouteEntry } from './match.js';
-import { selectionKey, type SelectionMap } from './state.js';
+import type { SelectionMap } from './state.js';
+import type { Activity } from './activity.js';
+import { launcherContent, overriddenKeys } from './model.js';
+import { clampWidth, loadPrefs, savePrefs, THEMES, type Corner, type UiPrefs } from './prefs.js';
+import { mountGrip, syncGrip } from './grip.js';
+import { h, icon, ICON, isMac, isTextField } from './dom.js';
+import { createList } from './list.js';
 
 export type DiscoveryStatus = 'loading' | 'ok' | 'empty' | 'error';
 
 export interface PanelHooks {
-  /** Live reference to the selection map. Mutated in place. */
+  /** Live selection map. Mutated in place. */
   state: SelectionMap;
-  /** Latest discovered routes. Empty array until the first discovery resolves. */
   getRoutes: () => readonly RouteEntry[];
   getStatus: () => DiscoveryStatus;
   getError: () => string | null;
-  /** Re-fire discovery + re-prune state. Returns when the panel can re-render. */
+  /** Re-run discovery; resolves when the panel can re-render. */
   refresh: () => Promise<void>;
   /** Persist `state` after the panel mutates it. */
   onChange: () => void;
+  activity: Activity;
+  origin: string;
+  storage: Storage | null;
+}
+
+export interface PanelController {
+  rerender: () => void;
+  /** The closed shadow root (tests can't pierce it otherwise). */
+  shadowRoot: ShadowRoot;
+  open: () => void;
+  close: () => void;
+  announce: (text: string) => void;
 }
 
 const HOST_ID = 'apitemkin-devtools-host';
 
-const CSS = `
-:host {
-  all: initial;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  color-scheme: light dark;
-}
-*, *::before, *::after { box-sizing: border-box; }
-.launcher {
-  position: fixed;
-  bottom: 12px;
-  right: 12px;
-  z-index: 2147483647;
-  background: #111827;
-  color: #f3f4f6;
-  border: 1px solid #374151;
-  border-radius: 999px;
-  padding: 6px 14px;
-  font: 500 12px/1 inherit;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
-}
-.launcher:hover { background: #1f2937; }
-.launcher .badge {
-  display: inline-block;
-  background: #dc2626;
-  color: #fff;
-  border-radius: 999px;
-  padding: 1px 6px;
-  margin-left: 6px;
-  font-size: 10px;
-}
-.panel {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
-  width: 440px;
-  max-width: calc(100vw - 24px);
-  background: #ffffff;
-  color: #111827;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
-  z-index: 2147483646;
-  display: none;
-  flex-direction: column;
-  overflow: hidden;
-  font-size: 12px;
-}
-.panel[data-open="true"] { display: flex; }
-.panel header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-.panel h2 {
-  flex: 1;
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.panel header button {
-  background: #ffffff;
-  color: inherit;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 3px 8px;
-  font: 500 11px/1 inherit;
-  cursor: pointer;
-}
-.panel header button:hover { background: #f3f4f6; }
-.panel header [data-action="close"] {
-  border: none;
-  background: transparent;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0 6px;
-}
-.confirm {
-  padding: 8px 12px;
-  background: #fef2f2;
-  border-bottom: 1px solid #fecaca;
-  color: #7f1d1d;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.confirm span { flex: 1; }
-.confirm .yes {
-  background: #dc2626;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 3px 10px;
-  cursor: pointer;
-}
-.confirm .no {
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 3px 10px;
-  cursor: pointer;
-}
-.content {
-  flex: 1;
-  overflow-y: auto;
-}
-.empty {
-  padding: 32px 24px;
-  text-align: center;
-  color: #6b7280;
-  line-height: 1.5;
-}
-.empty button {
-  margin-top: 12px;
-  background: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  padding: 4px 10px;
-  font: 500 11px/1 inherit;
-  cursor: pointer;
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-th, td {
-  text-align: left;
-  padding: 6px 12px;
-  border-bottom: 1px solid #f3f4f6;
-  vertical-align: middle;
-}
-th {
-  position: sticky;
-  top: 0;
-  background: #f9fafb;
-  font: 600 10px/1 inherit;
-  color: #4b5563;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-tbody tr:hover td { background: #f9fafb; }
-.pill {
-  display: inline-block;
-  font: 600 10px/1 ui-monospace, "SF Mono", Menlo, monospace;
-  padding: 3px 6px;
-  border-radius: 3px;
-  color: #fff;
-  letter-spacing: 0.03em;
-}
-.pill-GET { background: #2563eb; }
-.pill-POST { background: #16a34a; }
-.pill-PUT, .pill-PATCH { background: #d97706; }
-.pill-DELETE { background: #dc2626; }
-.pill-OTHER { background: #6b7280; }
-.url {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 11.5px;
-  word-break: break-all;
-}
-td.scenario select {
-  width: 100%;
-  font: inherit;
-  padding: 2px 4px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  background: #ffffff;
-  color: inherit;
-}
-td.scenario.na { color: #9ca3af; font-style: italic; }
-td.active { width: 24px; text-align: center; }
-.dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #2563eb;
-}
-@media (prefers-color-scheme: dark) {
-  .panel {
-    background: #1f2937;
-    color: #f3f4f6;
-    border-color: #374151;
-  }
-  .panel header { background: #111827; border-bottom-color: #374151; }
-  .panel header button {
-    background: #1f2937;
-    border-color: #4b5563;
-    color: #f3f4f6;
-  }
-  .panel header button:hover { background: #374151; }
-  th { background: #111827; color: #d1d5db; }
-  th, td { border-bottom-color: #374151; }
-  tbody tr:hover td { background: #374151; }
-  .empty { color: #9ca3af; }
-  .empty button {
-    background: #1f2937;
-    border-color: #4b5563;
-    color: #f3f4f6;
-  }
-  td.scenario select {
-    background: #1f2937;
-    border-color: #4b5563;
-    color: #f3f4f6;
-  }
-  .confirm {
-    background: #7f1d1d;
-    border-bottom-color: #991b1b;
-    color: #fee2e2;
-  }
-  .confirm .no { background: #1f2937; border-color: #4b5563; color: #f3f4f6; }
-}
-`;
-
-export interface PanelController {
-  rerender: () => void;
-  /**
-   * Reference to the closed shadow root the panel was mounted into. Useful
-   * for tests, which otherwise can't pierce the shadow boundary. Production
-   * callers don't need this — destructure `{ rerender }` and ignore the rest.
-   */
-  shadowRoot: ShadowRoot;
-}
+const reducedMotion = (): boolean =>
+  typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function mountPanel(hooks: PanelHooks): PanelController {
-  const host = document.createElement('div');
-  host.id = HOST_ID;
+  const host = h('div', { id: HOST_ID });
   document.body.appendChild(host);
-
   const shadow = host.attachShadow({ mode: 'closed' });
+  shadow.append(h('style', {}, css));
 
-  const style = document.createElement('style');
-  style.textContent = CSS;
-  shadow.appendChild(style);
+  const prefs: UiPrefs = loadPrefs(hooks.storage);
+  let confirming = false;
+  let onlyOverridden = false;
+  let refreshing = false;
 
-  const launcher = document.createElement('button');
-  launcher.type = 'button';
-  launcher.className = 'launcher';
-  shadow.appendChild(launcher);
+  // ---------- launcher ----------
+  const chip = h('span', { class: 'chip', 'data-part': 'launcher-chip', hidden: true });
+  const launcher = h(
+    'button',
+    {
+      type: 'button',
+      class: 'launch',
+      'data-part': 'launcher',
+      'data-corner': prefs.corner,
+      'aria-description': 'Alt+Shift+arrow keys move it to another corner',
+    },
+    h('span', { class: 'brand' }, 'apitemkin'),
+    chip,
+  );
 
-  const panel = document.createElement('aside');
-  panel.className = 'panel';
-  panel.dataset['open'] = 'false';
-  panel.innerHTML = `
-    <header>
-      <h2>apitemkin · scenarios</h2>
-      <button type="button" data-action="refresh">Refresh</button>
-      <button type="button" data-action="reset">Reset all</button>
-      <button type="button" data-action="close" aria-label="Close">×</button>
-    </header>
-    <div class="content"></div>
-  `;
-  shadow.appendChild(panel);
+  // ---------- panel ----------
+  const refreshBtn = h('button', { type: 'button', class: 'hb', 'data-part': 'refresh' }, 'Rescan mocks');
+  const themeBtn = h('button', { type: 'button', class: 'hb x', 'data-part': 'theme' });
+  const closeBtn = h(
+    'button',
+    { type: 'button', class: 'hb x', 'data-part': 'close', 'aria-label': 'Close panel' },
+    icon(ICON.close),
+  );
+  const body = h('div', { class: 'body', 'data-part': 'body', tabindex: '-1' });
+  const footer = h('div', { class: 'foot', 'data-part': 'footer' });
+  const live = h('div', { class: 'sr', 'data-part': 'live', 'aria-live': 'polite' });
+  const panel = h(
+    'aside',
+    {
+      class: 'panel',
+      id: 'apitemkin-panel',
+      'data-part': 'panel',
+      'data-corner': prefs.corner,
+      role: 'dialog',
+      'aria-label': 'apitemkin',
+      // Focusable so a click on its chrome keeps focus (and Esc) inside.
+      tabindex: '-1',
+      hidden: true,
+    },
+    h('header', { class: 'head', 'data-part': 'header' }, h('h2', {}, 'apitemkin'), refreshBtn, themeBtn, closeBtn),
+    body,
+    footer,
+    live,
+  );
+  const grip = mountGrip(panel, () => prefs, setWidth);
+  panel.append(grip);
+  applyWidth();
+  shadow.append(launcher, panel);
 
-  const content = panel.querySelector('.content') as HTMLDivElement;
-  const refreshBtn = panel.querySelector(
-    '[data-action="refresh"]',
-  ) as HTMLButtonElement;
-  const resetBtn = panel.querySelector(
-    '[data-action="reset"]',
-  ) as HTMLButtonElement;
-  const closeBtn = panel.querySelector(
-    '[data-action="close"]',
-  ) as HTMLButtonElement;
+  function applyWidth(): void {
+    panel.style.width = `${prefs.width}px`;
+    syncRenderedWidth();
+  }
 
-  let confirmingReset = false;
+  // A small viewport squeezes the panel below its saved width (max-width);
+  // the narrow layout and the grip's spoken value follow what is rendered.
+  // The panel hugs its content and is docked to a corner, so filtering would
+  // make it jump (a bottom-docked header drops ~220px on "no results"). While
+  // a search or the overridden filter is active, keep the height it had.
+  function holdHeight(active: boolean): void {
+    if (!active) {
+      panel.style.removeProperty('--hold');
+    } else if (!panel.style.getPropertyValue('--hold')) {
+      // CSS caps the hold at the viewport (min() with the max-height), so a
+      // shrinking window never pushes the header off-screen.
+      const px = Math.round(panel.getBoundingClientRect().height);
+      if (px > 0) panel.style.setProperty('--hold', `${px}px`);
+    }
+  }
 
-  launcher.addEventListener('click', () => togglePanel());
-  closeBtn.addEventListener('click', () => setOpen(false));
-  refreshBtn.addEventListener('click', async () => {
-    refreshBtn.disabled = true;
-    refreshBtn.textContent = '…';
-    try {
-      await hooks.refresh();
-    } finally {
-      refreshBtn.disabled = false;
-      refreshBtn.textContent = 'Refresh';
-      rerender();
+  function syncRenderedWidth(): void {
+    const w = Math.round(panel.getBoundingClientRect().width) || prefs.width;
+    panel.classList.toggle('narrow', w < 440);
+    syncGrip(grip, w);
+  }
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(syncRenderedWidth).observe(panel);
+
+  function setWidth(px: number): void {
+    prefs.width = clampWidth(px);
+    applyWidth();
+    savePrefs(hooks.storage, prefs);
+  }
+
+  // Theme: 'auto' follows the OS; a manual choice sets data-theme on the host.
+  function applyTheme(): void {
+    if (prefs.theme === 'auto') host.removeAttribute('data-theme');
+    else host.setAttribute('data-theme', prefs.theme);
+    const label = `Theme: ${prefs.theme}${prefs.theme === 'auto' ? ' (follows system)' : ''}. Change theme`;
+    themeBtn.setAttribute('aria-label', label);
+    themeBtn.title = label;
+    themeBtn.replaceChildren(icon(ICON[prefs.theme]));
+  }
+  applyTheme();
+  themeBtn.addEventListener('click', () => {
+    prefs.theme = THEMES[(THEMES.indexOf(prefs.theme) + 1) % THEMES.length]!;
+    applyTheme();
+    savePrefs(hooks.storage, prefs);
+  });
+
+  function setCorner(corner: Corner): void {
+    prefs.corner = corner;
+    launcher.dataset['corner'] = corner;
+    panel.dataset['corner'] = corner;
+    savePrefs(hooks.storage, prefs);
+  }
+
+  const list = createList(hooks, {
+    shadowRoot: shadow,
+    announce,
+    rerender: () => rerender(),
+    holdHeight: (searching) => holdHeight(searching || onlyOverridden),
+  });
+  const focusInside = (): void => {
+    if (hooks.getStatus() === 'ok' && (list.focusSearch() || (list.focusFirst(), true))) return;
+    body.focus();
+  };
+
+  // ---------- open / close ----------
+  function open(): void {
+    if (!panel.hidden) return;
+    launcher.hidden = true;
+    panel.hidden = false;
+    if (!reducedMotion()) {
+      panel.dataset['anim'] = 'grow';
+      setTimeout(() => delete panel.dataset['anim'], 200);
+    }
+    rerender();
+    focusInside();
+  }
+
+  function close(): void {
+    if (panel.hidden) return;
+    confirming = false;
+    panel.hidden = true;
+    launcher.hidden = false;
+    rerender();
+    launcher.focus();
+  }
+
+  const toggle = (): void => (panel.hidden ? open() : close());
+
+  // Move the launcher: Alt+Shift+arrows, or drag (more than 8px) and it
+  // snaps to the nearest corner. A plain click still opens the panel.
+  launcher.addEventListener('keydown', (e) => {
+    if (!e.altKey || !e.shiftKey) return;
+    const [v, hz] = prefs.corner.split('') as ['b' | 't', 'r' | 'l'];
+    const next =
+      e.key === 'ArrowUp' ? `t${hz}` : e.key === 'ArrowDown' ? `b${hz}` :
+      e.key === 'ArrowLeft' ? `${v}l` : e.key === 'ArrowRight' ? `${v}r` : null;
+    if (!next) return;
+    e.preventDefault();
+    setCorner(next as Corner);
+  });
+  let downAt: { x: number; y: number } | null = null;
+  let dragged = false;
+  launcher.addEventListener('pointerdown', (e) => {
+    downAt = { x: e.clientX, y: e.clientY };
+    dragged = false;
+    // Keep move/up events once the pointer leaves the 40px pill.
+    launcher.setPointerCapture?.(e.pointerId);
+  });
+  launcher.addEventListener('pointermove', (e) => {
+    if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 8) dragged = true;
+  });
+  launcher.addEventListener('pointerup', (e) => {
+    if (dragged) {
+      const v = e.clientY < innerHeight / 2 ? 't' : 'b';
+      const hz = e.clientX < innerWidth / 2 ? 'l' : 'r';
+      setCorner(`${v}${hz}` as Corner);
+    }
+    downAt = null;
+    launcher.releasePointerCapture?.(e.pointerId);
+  });
+  launcher.addEventListener('pointercancel', () => {
+    downAt = null;
+    dragged = false;
+  });
+  launcher.addEventListener('click', (e) => {
+    if (dragged) {
+      dragged = false;
+      e.preventDefault();
+      return;
+    }
+    open();
+  });
+  closeBtn.addEventListener('click', close);
+
+  // The only listener on the host page: Alt+Shift+M. Match the physical
+  // key, because Option+Shift+M on macOS produces event.key "Â".
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyM' && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      toggle();
     }
   });
-  resetBtn.addEventListener('click', () => {
-    if (Object.keys(hooks.state).length === 0) return;
-    confirmingReset = true;
-    rerender();
+
+  // Escape closes the innermost thing first.
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === '/' && !isTextField(e.target) && list.focusSearch()) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    e.preventDefault();
+    if (confirming) {
+      confirming = false;
+      renderFooter();
+      footer.querySelector<HTMLElement>('[data-part="reset"]')?.focus();
+      return;
+    }
+    close();
   });
 
-  function togglePanel(): void {
-    setOpen(panel.dataset['open'] !== 'true');
+  refreshBtn.addEventListener('click', () => {
+    refreshing = true;
+    renderHeader();
+    void hooks.refresh().finally(() => {
+      refreshing = false;
+      rerender();
+    });
+  });
+
+  // ---------- rendering ----------
+  function announce(text: string): void {
+    live.textContent = text;
   }
-  function setOpen(open: boolean): void {
-    panel.dataset['open'] = open ? 'true' : 'false';
-    if (!open) confirmingReset = false;
+
+  function renderLauncher(): void {
+    const { chip: label, accessibleName } = launcherContent(hooks.state, hooks.getRoutes());
+    launcher.setAttribute('aria-label', accessibleName);
+    launcher.classList.toggle('n', label !== null);
+    chip.hidden = label === null;
+    chip.textContent = label ?? '';
+  }
+
+  function renderHeader(): void {
+    const busy = refreshing || hooks.getStatus() === 'loading';
+    refreshBtn.disabled = busy;
+    if (refreshing) refreshBtn.setAttribute('aria-busy', 'true');
+    else refreshBtn.removeAttribute('aria-busy');
+  }
+
+  function renderBody(): void {
+    const status = hooks.getStatus();
+    if (status === 'ok') {
+      if (list.el.parentNode !== body) body.replaceChildren(list.el);
+      list.update({ onlyOverridden });
+      return;
+    }
+    body.textContent = '';
+    if (status === 'loading') {
+      body.append(
+        h(
+          'div',
+          { class: 'state', 'data-part': 'state', 'data-state': 'loading' },
+          h('span', { class: 'sr' }, 'Loading routes…'),
+          h('div', { class: 'skel' }),
+          h('div', { class: 'skel' }),
+          h('div', { class: 'skel' }),
+        ),
+      );
+    } else if (status === 'error') {
+      const retry = h('button', { type: 'button', class: 'fb', 'data-part': 'retry' }, 'Retry');
+      retry.addEventListener('click', () => refreshBtn.click());
+      body.append(
+        h(
+          'div',
+          { class: 'state empty', 'data-part': 'state', 'data-state': 'error', role: 'alert' },
+          h('h3', { class: 'bad' }, icon(ICON.alert), "Couldn't load routes"),
+          h('p', { class: 'detail' }, `GET /_apitemkin/scenarios · ${hooks.getError() ?? 'unknown error'}`),
+          h('p', {}, "The dev server isn't answering. Check that vite is still running, then retry."),
+          retry,
+        ),
+      );
+    } else if (status === 'empty') {
+      body.append(
+        h(
+          'div',
+          { class: 'state empty', 'data-part': 'state', 'data-state': 'empty' },
+          h('h3', {}, 'No mocks yet. The village is empty.'),
+          h('p', {}, 'Add ', h('code', {}, 'mocks/hello.json'), ' → ', h('code', {}, 'GET /api/hello'), '.'),
+        ),
+      );
+    }
+  }
+
+  function renderFooter(): void {
+    footer.textContent = '';
+    const routes = hooks.getRoutes();
+    const count = overriddenKeys(hooks.state, routes).length;
+    if (count === 0) onlyOverridden = false;
+
+    if (confirming && count > 0) {
+      const yes = h('button', { type: 'button', class: 'fb', 'data-part': 'reset-yes' }, 'Reset');
+      const cancel = h('button', { type: 'button', class: 'fb', 'data-part': 'reset-cancel' }, 'Cancel');
+      yes.addEventListener('click', () => {
+        const cleared = Object.keys(hooks.state);
+        for (const k of cleared) delete hooks.state[k];
+        hooks.onChange();
+        confirming = false;
+        rerender();
+        announce(`${count} ${count === 1 ? 'route' : 'routes'} reset to default`);
+        if (!list.focusSearch()) body.focus();
+      });
+      cancel.addEventListener('click', () => {
+        confirming = false;
+        renderFooter();
+        footer.querySelector<HTMLElement>('[data-part="reset"]')?.focus();
+      });
+      footer.append(
+        h(
+          'div',
+          { class: 'confirm', 'data-part': 'reset-confirm' },
+          h('span', {}, `Reset ${count} ${count === 1 ? 'route' : 'routes'} to default?`),
+          cancel,
+          yes,
+        ),
+      );
+      cancel.focus();
+      return;
+    }
+    confirming = false;
+
+    if (count > 0) {
+      const filter = h(
+        'button',
+        { type: 'button', class: 'fb', 'data-part': 'filter' },
+        onlyOverridden ? `Show all ${routes.length} routes` : `Show ${count} overridden`,
+      );
+      filter.classList.toggle('on', onlyOverridden);
+      filter.addEventListener('click', () => {
+        onlyOverridden = !onlyOverridden;
+        holdHeight(onlyOverridden || list.hasQuery());
+        rerender();
+        footer.querySelector<HTMLElement>('[data-part="filter"]')?.focus();
+      });
+      footer.append(filter);
+    } else {
+      footer.append(h('span', { class: 'none' }, 'No overrides'));
+    }
+
+    const reset = h(
+      'button',
+      { type: 'button', class: 'fb', 'data-part': 'reset', disabled: count === 0 },
+      'Reset scenarios',
+    );
+    reset.addEventListener('click', () => {
+      confirming = true;
+      renderFooter();
+    });
+    footer.append(reset, h('kbd', { 'data-part': 'kbd' }, isMac() ? '⌥⇧M' : 'Alt+Shift+M'));
   }
 
   function rerender(): void {
-    updateLauncher();
-    renderConfirm();
-    renderContent();
-  }
-
-  function updateLauncher(): void {
-    const count = Object.keys(hooks.state).length;
-    launcher.textContent = '';
-    launcher.appendChild(document.createTextNode('apitemkin'));
-    if (count > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'badge';
-      badge.textContent = String(count);
-      launcher.appendChild(badge);
+    // The filter has nothing to show once no route is overridden; clear it
+    // before the body renders, or the list draws filtered to zero rows.
+    if (overriddenKeys(hooks.state, hooks.getRoutes()).length === 0 && onlyOverridden) {
+      onlyOverridden = false;
+      holdHeight(list.hasQuery());
     }
-  }
-
-  function renderConfirm(): void {
-    const existing = panel.querySelector('.confirm');
-    if (existing) existing.remove();
-    if (!confirmingReset) return;
-    const bar = document.createElement('div');
-    bar.className = 'confirm';
-    bar.innerHTML = `
-      <span>Clear all scenario selections?</span>
-      <button type="button" class="yes">Clear</button>
-      <button type="button" class="no">Cancel</button>
-    `;
-    bar.querySelector('.yes')!.addEventListener('click', () => {
-      for (const k of Object.keys(hooks.state)) delete hooks.state[k];
-      hooks.onChange();
-      confirmingReset = false;
-      rerender();
-    });
-    bar.querySelector('.no')!.addEventListener('click', () => {
-      confirmingReset = false;
-      rerender();
-    });
-    panel.insertBefore(bar, content);
-  }
-
-  function renderContent(): void {
-    content.textContent = '';
-    const status = hooks.getStatus();
-
-    if (status === 'loading') {
-      content.appendChild(emptyState('Loading routes…'));
-      return;
-    }
-    if (status === 'error') {
-      const msg = hooks.getError() ?? 'unknown error';
-      content.appendChild(
-        emptyState(
-          `Discovery endpoint unreachable (${msg}). Is vite-plugin-apitemkin enabled?`,
-          'Retry',
-        ),
-      );
-      return;
-    }
-    const routes = [...hooks.getRoutes()].sort((a, b) => {
-      const u = a.url.localeCompare(b.url);
-      return u !== 0 ? u : a.method.localeCompare(b.method);
-    });
-    if (routes.length === 0) {
-      content.appendChild(
-        emptyState('No mocks discovered. Add one in mocks/ and click Refresh.'),
-      );
-      return;
-    }
-    content.appendChild(renderTable(routes));
-  }
-
-  function emptyState(message: string, retryLabel?: string): HTMLDivElement {
-    const div = document.createElement('div');
-    div.className = 'empty';
-    div.appendChild(document.createTextNode(message));
-    if (retryLabel) {
-      div.appendChild(document.createElement('br'));
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = retryLabel;
-      btn.addEventListener('click', () => refreshBtn.click());
-      div.appendChild(btn);
-    }
-    return div;
-  }
-
-  function renderTable(routes: readonly RouteEntry[]): HTMLTableElement {
-    const table = document.createElement('table');
-    const thead = document.createElement('thead');
-    thead.innerHTML = `
-      <tr>
-        <th>Method</th>
-        <th>URL</th>
-        <th>Scenario</th>
-        <th></th>
-      </tr>
-    `;
-    table.appendChild(thead);
-    const tbody = document.createElement('tbody');
-    for (const route of routes) tbody.appendChild(renderRow(route));
-    table.appendChild(tbody);
-    return table;
-  }
-
-  function renderRow(route: RouteEntry): HTMLTableRowElement {
-    const tr = document.createElement('tr');
-
-    const methodCell = document.createElement('td');
-    const pill = document.createElement('span');
-    const method = route.method.toUpperCase();
-    pill.className = `pill pill-${pillClass(method)}`;
-    pill.textContent = method;
-    methodCell.appendChild(pill);
-    tr.appendChild(methodCell);
-
-    const urlCell = document.createElement('td');
-    urlCell.className = 'url';
-    urlCell.textContent = route.url;
-    tr.appendChild(urlCell);
-
-    const scenarioCell = document.createElement('td');
-    scenarioCell.className = 'scenario';
-    const scenarios = route.scenarios ?? [];
-    if (scenarios.length === 0) {
-      scenarioCell.classList.add('na');
-      scenarioCell.textContent = '—';
-    } else {
-      const select = document.createElement('select');
-      const key = selectionKey(method, route.url);
-      const current = hooks.state[key] ?? 'default';
-      const names = scenarios.includes('default')
-        ? ['default', ...scenarios.filter((s) => s !== 'default')]
-        : ['default', ...scenarios];
-      for (const name of names) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-      }
-      // Set the live value AFTER all options are appended — relying on
-      // `option.selected = true` is brittle across DOM implementations.
-      select.value = current;
-      select.addEventListener('change', () => {
-        const value = select.value;
-        if (value === 'default') {
-          delete hooks.state[key];
-        } else {
-          hooks.state[key] = value;
-        }
-        hooks.onChange();
-        rerender();
-      });
-      scenarioCell.appendChild(select);
-    }
-    tr.appendChild(scenarioCell);
-
-    const activeCell = document.createElement('td');
-    activeCell.className = 'active';
-    const key = selectionKey(method, route.url);
-    if (hooks.state[key]) {
-      const dot = document.createElement('span');
-      dot.className = 'dot';
-      activeCell.appendChild(dot);
-    }
-    tr.appendChild(activeCell);
-
-    return tr;
+    renderLauncher();
+    renderHeader();
+    renderBody();
+    renderFooter();
   }
 
   rerender();
-  return { rerender, shadowRoot: shadow };
-}
-
-function pillClass(method: string): string {
-  switch (method) {
-    case 'GET':
-    case 'POST':
-    case 'PUT':
-    case 'PATCH':
-    case 'DELETE':
-      return method;
-    default:
-      return 'OTHER';
-  }
+  return { rerender, shadowRoot: shadow, open, close, announce };
 }
