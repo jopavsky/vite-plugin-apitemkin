@@ -327,9 +327,9 @@ Mock a few endpoints; every other `/api` request goes to your real backend. If `
 
 | Version | Status  | Theme                                                                                  |
 | ------- | ------- | -------------------------------------------------------------------------------------- |
-| 1.3     | next    | Easier to start: AI guide, fall-through to a real backend, `many()` helper             |
-| 1.4     | planned | Redesigned dev-tools overlay                                                           |
-| 1.5     | planned | Mocks that remember: in-memory CRUD collections                                        |
+| 1.3     | shipped | Easier to start: AI guide, fall-through to a real backend, `many()` helper             |
+| 1.4     | shipped | Redesigned dev-tools overlay                                                           |
+| 1.5     | shipped | Mocks that remember: in-memory CRUD collections                                        |
 | 2.0     | planned | Remove deprecated `apitemkin_scenario` param                                           |
 | later   | maybe   | Docs site; HAR/OpenAPI import; catch-all params (`[...slug]`); WebSocket/SSE support   |
 

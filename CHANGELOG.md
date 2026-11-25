@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-25
+
 ### Added
 - Collections: mocks that remember. `defineCollection(seed, options)` in a
   folder's `_data.ts` file holds an in-memory list that route files share. One-liners
@@ -203,7 +205,8 @@ require a major bump; new features land as minors; bug fixes as patches.
   `PathSegment`, `HttpMethod`, `MatchResult`.
 - Zero runtime dependencies.
 
-[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/jopavsky/vite-plugin-apitemkin/compare/v1.1.0...v1.2.0
