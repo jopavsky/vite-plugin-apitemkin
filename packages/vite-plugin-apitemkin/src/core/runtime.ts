@@ -93,6 +93,9 @@ export interface NormalizedResponse {
 
 export type ModuleLoader = (filePath: string) => Promise<Record<string, unknown>>;
 
+/** Marks an error the client caused (e.g. malformed JSON); the engine answers 400. */
+export const BAD_REQUEST = Symbol.for('apitemkin.bad-request');
+
 export async function invokeHandler(
   loadModule: ModuleLoader,
   route: MockRoute,
@@ -107,7 +110,15 @@ export async function invokeHandler(
     );
   }
 
-  const body = await readJsonBody(req);
+  let body: unknown;
+  try {
+    body = await readJsonBody(req);
+  } catch (err) {
+    throw Object.assign(
+      new Error(`Request body is not valid JSON (Content-Type is application/json): ${(err as Error).message}`),
+      { [BAD_REQUEST]: true },
+    );
+  }
   const fullQuery = parseQuery(req.url ?? '');
   // Strip _scenario (and deprecated apitemkin_scenario, accepted until 2.0) so
   // handlers don't see them as app-level query. The scenarios overload of

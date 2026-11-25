@@ -1,13 +1,16 @@
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
+  scanDataFiles,
   scanMocks,
+  type DataFile,
   type HttpMethod,
   type MockRoute,
   type MockRouteKind,
 } from './scanner.js';
 import { matchRoute } from './matcher.js';
-import { invokeHandler, sleep, type ModuleLoader } from './runtime.js';
+import { BAD_REQUEST, invokeHandler, sleep, type ModuleLoader } from './runtime.js';
+import { internalsOf, isCollection, USAGE_ERROR } from './collection.js';
 
 export interface EngineOptions {
   mocksDir: string;          // absolute path
@@ -16,6 +19,19 @@ export interface EngineOptions {
   loadModule: ModuleLoader;
   /** When true, unmatched URLs under urlPrefix return false instead of a 404. Default false. */
   fallthrough?: boolean;
+  /** Where collection load errors and `_data.json` warnings go. Messages start with `apitemkin:`. */
+  log?: { warn(msg: string): void; error(msg: string): void };
+}
+
+/** One collection export, for GET /_apitemkin/collections. */
+export interface CollectionEntry {
+  /** Export name. */
+  name: string;
+  /** Data file relative to mocksDir, `/` separators. */
+  file: string;
+  /** Folder URL the overlay groups it under. */
+  url: string;
+  count: number;
 }
 
 export interface DiscoveryEntry {
@@ -33,6 +49,10 @@ export interface MockEngine {
   handle(req: IncomingMessage, res: ServerResponse): Promise<boolean>;
   /** Entries for GET /_apitemkin/scenarios. Module load errors yield scenarios: []. */
   discovery(): Promise<DiscoveryEntry[]>;
+  /** Every collection export in the scanned data files. Files that fail to load are skipped. */
+  collections(): Promise<CollectionEntry[]>;
+  /** Reset one collection to its seed; null when no such file/export. */
+  resetCollection(file: string, name: string): Promise<CollectionEntry | null>;
 }
 
 export function createMockEngine(options: EngineOptions): MockEngine {
@@ -42,16 +62,91 @@ export function createMockEngine(options: EngineOptions): MockEngine {
     delay: globalDelay,
     loadModule,
     fallthrough = false,
+    log,
   } = options;
   let routes: MockRoute[] = [];
+  let dataFiles: DataFile[] = [];
   let generation = 0;
+  /** The rescan whose data files were last loaded; -1 = never. */
+  let loadedGeneration = -1;
+  const warnedJson = new Set<string>();
+
+  /**
+   * Data modules load on first use (first request or overlay call) after each
+   * rescan, never inside rescan: at startup that would run before Vite and
+   * other plugins finish setting up. Load errors are reported once per rescan.
+   */
+  function collectionsFirstUse(): Promise<CollectionEntry[]> {
+    const report = loadedGeneration !== generation;
+    loadedGeneration = generation;
+    return loadCollections(report);
+  }
+
+  /** Load every data module, name its collections, and list them. */
+  async function loadCollections(report: boolean): Promise<CollectionEntry[]> {
+    const out: CollectionEntry[] = [];
+    for (const data of dataFiles) {
+      if (data.json) continue;
+      let mod: Record<string, unknown>;
+      try {
+        mod = await loadModule(data.filePath);
+      } catch (err) {
+        if (report) {
+          log?.error(
+            `apitemkin: failed to load collection file ${data.file}: ${(err as Error).message}`,
+          );
+        }
+        continue;
+      }
+      for (const [name, value] of Object.entries(mod)) {
+        if (!isCollection(value)) continue;
+        const internals = internalsOf(value);
+        internals.name = name;
+        out.push({ name, file: data.file, url: data.url, count: internals.count() });
+      }
+    }
+    return out;
+  }
 
   return {
     async rescan() {
       const mine = ++generation;
-      const scanned = await scanMocks(mocksDir, urlPrefix);
+      const [scanned, data] = await Promise.all([
+        scanMocks(mocksDir, urlPrefix),
+        scanDataFiles(mocksDir, urlPrefix),
+      ]);
       // A newer rescan started meanwhile; its result (or the last good table) wins.
-      if (mine === generation) routes = scanned;
+      if (mine !== generation) return;
+      routes = scanned;
+      dataFiles = data;
+      for (const d of data) {
+        if (!d.json || warnedJson.has(d.file)) continue;
+        warnedJson.add(d.file);
+        log?.warn(
+          `apitemkin: ${d.file} ignored. JSON collection files are not supported yet; use a _data.ts file with defineCollection.`,
+        );
+      }
+    },
+
+    collections() {
+      return collectionsFirstUse();
+    },
+
+    async resetCollection(file, name) {
+      const data = dataFiles.find((d) => d.file === file && !d.json);
+      if (!data) return null;
+      let mod: Record<string, unknown>;
+      try {
+        mod = await loadModule(data.filePath);
+      } catch {
+        return null;
+      }
+      const value = Object.prototype.hasOwnProperty.call(mod, name) ? mod[name] : undefined;
+      if (!isCollection(value)) return null;
+      const internals = internalsOf(value);
+      internals.reset();
+      internals.name = name;
+      return { name, file: data.file, url: data.url, count: internals.count() };
     },
 
     routes() {
@@ -71,6 +166,8 @@ export function createMockEngine(options: EngineOptions): MockEngine {
             res.statusCode = 200;
             res.end(body);
           } else {
+            // Name collections before the first code route runs, so 404s say "in users".
+            if (loadedGeneration !== generation) await collectionsFirstUse();
             const result = await invokeHandler(
               loadModule,
               match.route,
@@ -101,9 +198,14 @@ export function createMockEngine(options: EngineOptions): MockEngine {
             res.end(payload);
           }
         } catch (err) {
-          res.statusCode = 500;
+          const e = err as Error & Record<symbol, unknown>;
+          // Collection one-liner misuse: say which route file to fix.
+          const message =
+            e && e[USAGE_ERROR] ? `${e.message}\n  in ${match.route.filePath}` : e.message;
+          // A client sent malformed JSON: that's a 400, not a mock failure.
+          res.statusCode = e && e[BAD_REQUEST] ? 400 : 500;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: (err as Error).message }));
+          res.end(JSON.stringify({ error: message }));
         }
         return true;
       }

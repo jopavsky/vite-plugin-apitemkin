@@ -186,6 +186,24 @@ kbd { margin-left: auto; font: 14px/20px var(--mono); color: var(--muted); backg
 .lg:disabled { color: var(--off); border-color: var(--hairline); cursor: default; }
 /* Last request failed unexpectedly: brick edge and glyph (the label says so in words). */
 .lg.bad { color: var(--brick); border-color: var(--brick); }
+/* Collection line (1.5): quieter than a route row, sits above the group's routes. Never mustard. */
+.coll {
+  display: flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 6px 8px; margin-bottom: 2px;
+  border-bottom: 1px solid var(--hairline);
+  font: 14px/20px var(--sans); color: var(--muted);
+}
+.coll > .ic { flex: none; }
+.coll .cn { font: 600 14px/20px var(--mono); color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
+.coll .cf { font: 14px/20px var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.coll .cc { flex: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cr {
+  height: 28px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--edge); background: transparent;
+  font: 600 14px/1 var(--sans); color: var(--muted); white-space: nowrap; cursor: pointer;
+}
+.cr:hover:not([aria-disabled="true"]) { background: var(--field); border-color: var(--ink); color: var(--ink); }
+.cr[aria-disabled="true"] { color: var(--off); border-color: var(--hairline); cursor: default; }
 /* Request log: height animates through grid rows, content fades and slides 4px. */
 .log {
   grid-column: 1 / -1; display: grid; grid-template-rows: 0fr; opacity: 0; margin: 0;
@@ -228,7 +246,8 @@ kbd { margin-left: auto; font: 14px/20px var(--mono); color: var(--muted); backg
 /* ---------- forced colors: every control keeps an edge ---------- */
 @media (forced-colors: active) {
   .sel.on { border: 2px solid Highlight; }
-  .sel, .fb, .q, .lg { border-color: ButtonText; }
+  .sel, .fb, .q, .lg, .cr { border-color: ButtonText; }
+  .coll { border-bottom-color: CanvasText; }
   .grip { background: CanvasText; }
   .launch:focus-visible { box-shadow: none; }
 }

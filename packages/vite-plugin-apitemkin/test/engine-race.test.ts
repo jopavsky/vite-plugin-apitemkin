@@ -4,6 +4,8 @@ import type { MockRoute } from '../src/core/scanner.js';
 const pending: Array<(r: MockRoute[]) => void> = [];
 vi.mock('../src/core/scanner.js', () => ({
   scanMocks: () => new Promise<MockRoute[]>((resolve) => pending.push(resolve)),
+  // 1.5: rescan also lists collection data files; none here.
+  scanDataFiles: async () => [],
 }));
 
 const { createMockEngine } = await import('../src/core/engine.js');

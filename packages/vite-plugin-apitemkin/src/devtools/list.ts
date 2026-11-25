@@ -17,6 +17,7 @@ import {
   inferPrefix,
   overriddenKeys,
   splitPrefix,
+  type CollectionInfo,
 } from './model.js';
 import { activeIn, h, icon, ICON } from './dom.js';
 
@@ -58,6 +59,8 @@ export function createList(hooks: PanelHooks, ctx: ListContext): ListController 
   const openLogs = new Set<string>();
   /** What each log last rendered, so unchanged ticks leave its nodes alone. */
   const logSig = new WeakMap<HTMLElement, string>();
+  /** Collections whose reset is in flight (`file#name`); survives rebuilds. */
+  const resetting = new Set<string>();
   /** Stable, collision-free ids for each route's log (keys can differ only in punctuation). */
   const logIds = new Map<string, string>();
   const logId = (key: string): string => {
@@ -142,6 +145,53 @@ export function createList(hooks: PanelHooks, ctx: ListContext): ListController 
       if (i < all.length - 1) p.append('/', h('wbr'));
     });
     return p;
+  }
+
+  // ---------- collection line: name, record count, Reset (1.5) ----------
+  /** `showFolder`: another collection in the same group has this name, so say which folder. */
+  function collectionNode(c: CollectionInfo, showFolder: boolean): HTMLElement {
+    const id = `${c.file}#${c.name}`;
+    const records = `${c.count} ${c.count === 1 ? 'record' : 'records'}`;
+    const folder = c.file.includes('/') ? c.file.slice(0, c.file.lastIndexOf('/')) : '/';
+    const label = showFolder ? `${c.name} in ${folder}` : c.name;
+    const btn = h(
+      'button',
+      {
+        type: 'button',
+        class: 'cr',
+        'data-part': 'collection-reset',
+        'data-fid': `c:${id}`,
+        'aria-label': `Reset ${label} to its seed data, ${records} now`,
+        // aria-disabled, not disabled: a natively disabled focused button drops
+        // focus to <body> in browsers, which would throw keyboard users out of the panel.
+        'aria-disabled': resetting.has(id) ? 'true' : undefined,
+      },
+      'Reset',
+    );
+    btn.addEventListener('click', () => {
+      if (resetting.has(id) || !hooks.resetCollection) return;
+      resetting.add(id);
+      btn.setAttribute('aria-disabled', 'true');
+      void hooks
+        .resetCollection(c.file, c.name)
+        .then(
+          () => ctx.announce(`${label} reset to its seed data`),
+          () => ctx.announce(`Couldn't reset ${label}`),
+        )
+        .finally(() => {
+          resetting.delete(id);
+          ctx.rerender();
+        });
+    });
+    return h(
+      'div',
+      { class: 'coll', 'data-part': 'collection', title: c.file },
+      icon(ICON.data),
+      h('span', { class: 'cn', 'data-part': 'collection-name' }, c.name),
+      showFolder ? h('span', { class: 'cf', 'data-part': 'collection-folder' }, folder) : null,
+      h('span', { class: 'cc', 'data-part': 'collection-count' }, records),
+      btn,
+    );
   }
 
   function rowNode(route: RouteEntry, prefix: string, overridden: Set<string>): HTMLElement {
@@ -281,9 +331,14 @@ export function createList(hooks: PanelHooks, ctx: ListContext): ListController 
       ctx.holdHeight?.(false);
     }
 
-    const prefix = inferPrefix(all);
+    const prefix = hooks.getUrlPrefix?.() ?? inferPrefix(all);
     const overridden = new Set(overriddenKeys(hooks.state, all));
     const shown = filterRoutes(all, query, view.onlyOverridden ? overridden : null);
+    const filtering = query.trim() !== '' || view.onlyOverridden;
+    // While filtering, a collection line shows only beside a route that's still shown.
+    const groups = groupRoutes(shown, prefix, hooks.getCollections?.() ?? []).filter(
+      (g) => !filtering || g.routes.length > 0,
+    );
     rows.textContent = '';
 
     if (shown.length === 0 && query) {
@@ -303,7 +358,7 @@ export function createList(hooks: PanelHooks, ctx: ListContext): ListController 
       );
     }
 
-    for (const group of groupRoutes(shown, prefix)) {
+    for (const group of groups) {
       const inGroup = group.routes.filter((r) => overridden.has(selectionKey(r.method, r.url))).length;
       const details = h('details', { class: 'grp', 'data-part': 'group' });
       details.open = !closed.has(group.label);
@@ -322,6 +377,10 @@ export function createList(hooks: PanelHooks, ctx: ListContext): ListController 
           inGroup > 0 ? h('span', { class: 'gchip', 'data-part': 'group-chip' }, `${inGroup} overridden`) : null,
         ),
       );
+      for (const c of group.collections) {
+        const shared = group.collections.filter((o) => o.name === c.name).length > 1;
+        details.append(collectionNode(c, shared));
+      }
       for (const route of group.routes) details.append(rowNode(route, prefix, overridden));
       rows.append(details);
     }
@@ -337,7 +396,7 @@ export function createList(hooks: PanelHooks, ctx: ListContext): ListController 
     for (const details of rows.querySelectorAll<HTMLDetailsElement>('details')) {
       out.push([details.querySelector('summary')!]);
       if (!details.open) continue;
-      for (const r of details.querySelectorAll<HTMLElement>('[data-part="row"]')) {
+      for (const r of details.querySelectorAll<HTMLElement>('[data-part="row"], [data-part="collection"]')) {
         const cells = [...r.querySelectorAll<HTMLElement>('[data-fid]:not(:disabled)')];
         // A scenario-less route that was never called has nothing to focus: skip it.
         if (cells.length) out.push(cells);

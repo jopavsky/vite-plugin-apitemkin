@@ -1,6 +1,6 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +14,10 @@ const extractTsBlocks = (text: string) =>
     .filter((b) => !b.includes("from '@faker-js/faker'"));
 
 const readGuide = () => readFile(join(pkgRoot, 'llms.txt'), 'utf8');
+
+/** `mocks/todos/index.ts` from a first line `// mocks/todos/index.ts`, else null. */
+const pathHeader = (block: string): string | null =>
+  /^\/\/ (mocks\/[^\s]+\.ts)\r?$/m.exec(block.split('\n')[0] ?? '')?.[1] ?? null;
 
 describe('llms.txt', () => {
   it('is listed in package.json files', async () => {
@@ -29,6 +33,8 @@ describe('llms.txt', () => {
       'defineOverride',
       'many(',
       'fallthrough',
+      'defineCollection',
+      '_data.ts',
       'Common mistakes',
     ]) {
       expect(text).toContain(topic);
@@ -42,6 +48,13 @@ describe('llms.txt', () => {
     expect(extractTsBlocks(crlf).length).toBe(extractTsBlocks(lf).length);
   });
 
+  it('collection examples import their data file from a sibling block', async () => {
+    const blocks = extractTsBlocks(await readGuide());
+    const headers = blocks.map(pathHeader);
+    expect(headers).toContain('mocks/todos/_data.ts');
+    expect(blocks.some((b) => pathHeader(b) && b.includes("from './_data'"))).toBe(true);
+  });
+
   it('every ts example typechecks against the real API', async () => {
     const text = await readGuide();
     const blocks = extractTsBlocks(text);
@@ -49,9 +62,18 @@ describe('llms.txt', () => {
 
     const dir = await mkdtemp(join(tmpdir(), 'apitemkin-llms-'));
     try {
+    // A block whose first line is `// mocks/....ts` is written at that path, so
+    // collection examples can import `./_data` from a sibling block. A
+    // path already taken goes to its own `dup<n>/` folder.
     const files: string[] = [];
     for (const [n, block] of blocks.entries()) {
-      const file = join(dir, `ex${n}.ts`);
+      const header = pathHeader(block);
+      let file = join(dir, `ex${n}.ts`);
+      if (header) {
+        file = join(dir, header);
+        if (files.includes(file)) file = join(dir, `dup${n}`, header);
+        await mkdir(dirname(file), { recursive: true });
+      }
       await writeFile(file, block);
       files.push(file);
     }

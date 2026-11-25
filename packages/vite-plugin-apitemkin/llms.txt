@@ -148,6 +148,99 @@ const users = many(50, (i) => ({
 export default defineMock(() => users);
 ```
 
+## Mocks that remember (collections)
+
+A collection is an in-memory list of records that route files share, so a POST changes what the next GET returns. Define it in a file named exactly `_data.ts` (or `_data.js`, `_data.mjs`) in the folder whose routes use it. `_data.ts` is never a route. The endpoints are still ordinary route files, one per method and URL, and each one imports the collection with `import { todos } from './_data'`. A folder has at most one `_data.ts`; it can export several collections.
+
+```
+mocks/todos/
+  _data.ts            the collection (not a route)
+  index.ts            GET    /api/todos
+  index.post.ts       POST   /api/todos
+  [id].ts             GET    /api/todos/:id
+  [id].put.ts         PUT    /api/todos/:id
+  [id].patch.ts       PATCH  /api/todos/:id
+  [id].delete.ts      DELETE /api/todos/:id
+```
+
+Create only the route files you need. Export each collection as a named export; the export name labels it in the overlay:
+
+```ts
+// mocks/todos/_data.ts
+import { defineCollection, many } from 'vite-plugin-apitemkin';
+
+export interface Todo {
+  id: number;
+  title: string;
+  done: boolean;
+}
+
+export const todos = defineCollection<Todo>(
+  many(3, (i) => ({ id: i + 1, title: `Todo ${i + 1}`, done: false })),
+);
+```
+
+`defineCollection(seed, options?)` options:
+- `idKey`: the field that holds the id. Default `'id'`. Every seed record must have one and ids must be unique, or `defineCollection` throws an error naming the fix.
+- `newId(records)`: the id for a POSTed record that has none. Default: numeric seeds (or an empty seed) count up from the highest id ever seen, so ids are never reused; string ids get a random UUID.
+- `wrap(body)`: the shape of one-liner success bodies, e.g. `(body) => ({ data: body })`. Error bodies are never wrapped.
+
+### One-liners: standard REST behavior
+
+| One-liner | Route file | Success | Errors |
+|---|---|---|---|
+| `list()` | `index.ts` | 200, every record | |
+| `get()` | `[id].ts` | 200, the record | 404 unknown id |
+| `create()` | `index.post.ts` | 201, the stored record, id assigned if missing | 400 body is not a JSON object, 409 id exists |
+| `replace()` | `[id].put.ts` | 200, the new record; the URL id wins | 400, 404 (no upsert) |
+| `update()` | `[id].patch.ts` | 200, shallow-merged; the id never changes | 400, 404 |
+| `remove()` | `[id].delete.ts` | 204, no body | 404 |
+
+The id is the route's URL param (the last one when there are several). Error bodies are `{ error: string }`.
+
+```ts
+// mocks/todos/[id].delete.ts
+import { todos } from './_data';
+
+export default todos.remove();
+```
+
+One-liners are handlers, so they work as scenario values. `default` keeps the real behavior and the other scenarios are canned responses:
+
+```ts
+// mocks/todos/index.post.ts
+import { defineMock } from 'vite-plugin-apitemkin';
+import { todos } from './_data';
+
+export default defineMock({
+  default: todos.create(),
+  error: { status: 500, body: { error: 'Server down' } },
+  invalid: { status: 422, body: { error: 'Title is required' } },
+});
+```
+
+### Direct access: custom endpoints
+
+`all()`, `find(id)`, `insert(record)`, `patch(id, changes)` and `delete(id)` read and change the data from your own handler. They return plain records (copies), and you shape the response yourself; `wrap` does not apply. `insert` throws if the id already exists. `find` and `patch` return `undefined` for an unknown id, and `delete` returns `false`.
+
+```ts
+// mocks/todos/index.ts
+import { defineMock } from 'vite-plugin-apitemkin';
+import { todos } from './_data';
+
+export default defineMock(({ query }) => {
+  const page = Number(query['page'] ?? 1);
+  const open = todos.all().filter((t) => !t.done);
+  return { items: open.slice((page - 1) * 10, page * 10), total: open.length };
+});
+```
+
+There is no built-in filtering, sorting or paging. Write it with `all()` and `query`, as above.
+
+### Lifetime
+
+The data lives in the dev server's memory and is never written to disk. It resets to the seed when the `_data.ts` file is saved, when the dev server restarts, or from the overlay's Reset button. Editing a route file keeps the data.
+
 ## Options
 
 Pass to `apitemkin({ ... })` in `vite.config.ts`.
@@ -180,8 +273,12 @@ With `fallthrough: true` and no `server.proxy`, the plugin logs a warning at sta
 - A file and a folder with the same name (`users.json` and `users/`). The dev server logs an `ambiguous mock layout` error and serves no routes until you fix it. Move the file to `users/index.json`.
 - A JSON mock and a code mock for the same URL and method. This is an error. Keep one.
 - A scenarios map without a `default` key. `default` is required.
-- Expecting state to persist between requests. apitemkin keeps no state for you, so a POST does not change what a later GET returns. Don't rely on module variables for data that must persist: they reset whenever the file or the server reloads.
-- Sending a non-JSON request body and reading `body`. Only `application/json` bodies are parsed. Other content types leave `body` as `undefined`.
+- Expecting a plain code mock to remember changes. Only collections keep state between requests. For a POST that a later GET should see, use a `_data.ts` collection (see "Mocks that remember"), not module variables in a route file.
+- Using a one-liner that needs an id (`get()`, `replace()`, `update()`, `remove()`) in a file without a URL param. The request answers 500 with `needs a URL param, e.g. [id].ts` and names the route file. Put it in `[id].ts` (or `[id].<method>.ts`).
+- Expecting collection data to survive saving its `_data.ts` file. Saving re-seeds it. Edit route files freely; that keeps the data.
+- Importing a `_data.ts` file from app (browser) code. It runs only inside the dev server, so the app gets a separate copy that never sees the mocks' changes. Fetch the API instead.
+- A `_data.json` file. It is reserved and ignored with a warning. Use `_data.ts` with `defineCollection`.
+- Sending a non-JSON request body and reading `body`. Only `application/json` bodies are parsed. Other content types leave `body` as `undefined`. A malformed JSON body is answered with a 400 before your handler runs.
 - Calling `faker` inside the handler. The data changes on every request. Seed and build the list at module top.
 - Using scenarios in a `.json` file. Convert the file to `.ts`.
 - Forgetting `status` for errors. Returning `{ error: '...' }` alone is a 200. Return `{ status: 404, body: { error: '...' } }`.

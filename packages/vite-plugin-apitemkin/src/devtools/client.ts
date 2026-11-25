@@ -18,8 +18,12 @@ import {
 } from '../core/scenario-param.js';
 import { createActivity, type Activity } from './activity.js';
 import { mountPanel, type DiscoveryStatus } from './ui.js';
+import { createCollectionsSync, isWriteUnderPrefix } from './collections.js';
 
 const DISCOVERY_URL = '/_apitemkin/scenarios';
+
+/** Called once a patched request has finished (any outcome). */
+type AfterRequest = (method: string, url: URL) => void;
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   bootstrap();
@@ -37,13 +41,25 @@ function bootstrap(): void {
   const storage = safeStorage();
   const state: SelectionMap = loadState(storage);
 
+  // Collections (1.5): counts refresh shortly after the app writes under the prefix.
+  const collections = createCollectionsSync(originalFetch, () => panel.rerender());
+  const afterRequest: AfterRequest = (method, url) => {
+    if (isWriteUnderPrefix(method, url, window.location.origin, collections.prefix())) {
+      collections.scheduleRefresh();
+    }
+  };
+
   let discoveryReady: Promise<void> = runDiscovery();
   const activity = createActivity();
 
-  installFetchPatch(originalFetch, () => discoveryReady, () => routes, state, activity);
-  installXHRPatch(() => routes, state, activity);
+  installFetchPatch(originalFetch, () => discoveryReady, () => routes, state, activity, afterRequest);
+  installXHRPatch(() => routes, state, activity, afterRequest);
 
   const panel = mountPanel({
+    getCollections: () => collections.get(),
+    getUrlPrefix: () => collections.prefix(),
+    resetCollection: (file, name) => collections.reset(file, name),
+    refreshCollections: () => collections.load().catch(warnCollections),
     state,
     getRoutes: () => routes,
     getStatus: () => status,
@@ -67,12 +83,15 @@ function bootstrap(): void {
   function runDiscovery(): Promise<void> {
     status = 'loading';
     lastError = null;
+    // Collections load alongside discovery; their failure never blocks the routes.
+    const collectionsLoaded = collections.load().catch(warnCollections);
     return startDiscovery(originalFetch)
-      .then((discovered) => {
+      .then(async (discovered) => {
+        await collectionsLoaded;
         routes = discovered;
         pruneState(state, routes);
         saveState(storage, state);
-        status = routes.length === 0 ? 'empty' : 'ok';
+        status = routes.length === 0 && collections.get().length === 0 ? 'empty' : 'ok';
       })
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
@@ -81,6 +100,10 @@ function bootstrap(): void {
         lastError = message;
       });
   }
+}
+
+function warnCollections(err: unknown): void {
+  console.warn('[apitemkin] collections failed:', err instanceof Error ? err.message : String(err));
 }
 
 function safeStorage(): Storage | null {
@@ -202,6 +225,7 @@ function installFetchPatch(
   getRoutes: () => RouteEntry[],
   state: SelectionMap,
   activity: Activity,
+  afterRequest: AfterRequest,
 ): void {
   window.fetch = async function apitemkinFetch(input, init) {
     await ready();
@@ -223,6 +247,11 @@ function installFetchPatch(
     }
 
     const token = trackRequest(activity, getRoutes(), method, url, window.location.origin, state);
+    const finish = (res: Promise<Response>): Promise<Response> => {
+      const after = (): void => afterRequest(method, url);
+      res.then(after, after);
+      return res;
+    };
     const rewritten = maybeRewrite(
       url,
       method,
@@ -230,15 +259,15 @@ function installFetchPatch(
       getRoutes(),
       state,
     );
-    if (!rewritten) return settle(activity, token, originalFetch(input, init));
+    if (!rewritten) return finish(settle(activity, token, originalFetch(input, init)));
 
     if (typeof input === 'string') {
-      return settle(activity, token, originalFetch(rewritten.href, init));
+      return finish(settle(activity, token, originalFetch(rewritten.href, init)));
     }
     if (input instanceof URL) {
-      return settle(activity, token, originalFetch(rewritten, init));
+      return finish(settle(activity, token, originalFetch(rewritten, init)));
     }
-    return settle(activity, token, originalFetch(new Request(rewritten.href, input), init));
+    return finish(settle(activity, token, originalFetch(new Request(rewritten.href, input), init)));
   };
 }
 
@@ -246,6 +275,7 @@ function installXHRPatch(
   getRoutes: () => RouteEntry[],
   state: SelectionMap,
   activity: Activity,
+  afterRequest: AfterRequest,
 ): void {
   const originalOpen = XMLHttpRequest.prototype.open;
   // XHR.open is synchronous, so we can't await discovery here. Requests
@@ -276,6 +306,7 @@ function installXHRPatch(
         'loadend',
         () => {
           if (token !== null) activity.finish(token, this.status);
+          afterRequest(method, parsed);
         },
         { once: true },
       );

@@ -199,6 +199,71 @@ export default defineMock(() => users);
 
 Seed Faker and build the list at module top. The data is generated once, so it's the same on every request and after reloads. `many` throws a `RangeError` if `count` isn't a non-negative integer.
 
+## Mocks that remember
+
+A collection is an in-memory list that your route files share, so a `POST` shows up in the next `GET`. Put it in a file named `_data.ts` in the folder whose routes use it. It sorts to the top of the folder and is never a route; the endpoints stay ordinary files:
+
+```
+mocks/todos/
+  _data.ts           the collection
+  index.ts           GET    /api/todos        todos.list()
+  index.post.ts      POST   /api/todos        todos.create()
+  [id].ts            GET    /api/todos/:id    todos.get()
+  [id].put.ts        PUT    /api/todos/:id    todos.replace()
+  [id].patch.ts      PATCH  /api/todos/:id    todos.update()
+  [id].delete.ts     DELETE /api/todos/:id    todos.remove()
+```
+
+```ts
+// mocks/todos/_data.ts
+import { defineCollection } from 'vite-plugin-apitemkin';
+
+export const todos = defineCollection([
+  { id: 1, title: 'Buy milk', done: false },
+  { id: 2, title: 'Walk the dog', done: true },
+]);
+```
+
+```ts
+// mocks/todos/index.post.ts
+import { defineMock } from 'vite-plugin-apitemkin';
+import { todos } from './_data';
+
+export default defineMock({
+  default: todos.create(), // stores the record, 201
+  error: { status: 500, body: { error: 'Server down' } },
+});
+```
+
+| One-liner | Success | Errors |
+| --- | --- | --- |
+| `list()` | 200, every record | |
+| `get()` | 200, the record | 404 |
+| `create()` | 201, the stored record (id assigned if missing) | 400 not a JSON object, 409 id exists |
+| `replace()` | 200, the new record; the URL id wins | 400, 404 |
+| `update()` | 200, shallow-merged; the id never changes | 400, 404 |
+| `remove()` | 204 | 404 |
+
+For custom endpoints, use direct access in your own handler: `all()`, `find(id)`, `insert(record)`, `patch(id, changes)`, `delete(id)`. They return copies of the records, and you shape the response. Filtering and paging are plain code; nothing is built in:
+
+```ts
+// mocks/todos/open.ts  →  GET /api/todos/open
+import { defineMock } from 'vite-plugin-apitemkin';
+import { todos } from './_data';
+
+export default defineMock(({ query }) => {
+  const page = Number(query.page ?? 1);
+  const open = todos.all().filter((t) => !t.done);
+  return { items: open.slice((page - 1) * 10, page * 10), total: open.length };
+});
+```
+
+Every seed record needs an id (or the field named by `idKey`), and ids must be unique; otherwise `defineCollection` throws an error that names the fix.
+
+Options: `defineCollection(seed, { idKey, newId, wrap })`. `idKey` defaults to `'id'`. New ids count up from the highest numeric id (or are UUIDs for string ids). `wrap: (body) => ({ data: body })` shapes one-liner success bodies.
+
+The data lives in memory only; nothing is written to your files. It resets when you save the `_data.ts` file, restart the dev server, or press Reset on the collection's line in the overlay. Editing a route file keeps it.
+
 ## Dev-tools overlay
 
 Switching scenarios by hand-editing `?_scenario=…` in URLs gets old fast. The overlay puts a small launcher in a corner of your dev page. It tells you at a glance what's overridden (`orders: error`, or `2 overridden`), and opens a panel listing every discovered route with a per-route scenario picker.

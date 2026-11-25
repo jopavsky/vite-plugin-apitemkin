@@ -141,26 +141,14 @@ Each release gets its own short design before implementation. The sections below
 
 ### 1.5: Mocks that remember (collections)
 
-Decided:
-- A collection is a mock file that holds seed records and automatically serves standard REST operations from one shared in-memory list:
-  - `GET` list
-  - `GET /:id`
-  - `POST` (assigns an id when it's missing)
-  - `PUT` and `PATCH /:id`
-  - `DELETE /:id`
-- Seeds can be literal arrays or built with `many()`.
-- State lives in memory only. It resets when the collection file changes or the server restarts. Nothing is written to disk.
-- No relationships between collections.
-- The discovery endpoint reports each collection as one entry with a new kind, `collection` (see 1.4). The overlay gets a per-collection "reset data" control.
-- It depends on the 1.3 watcher fix (1.3e).
-- The URL comes from the folder convention, as with every other mock.
+Shipped. Its design doc and implementation plan were removed after release; the README, `llms.txt` and CHANGELOG describe the result, and the summary below records what changed from this plan.
 
-*Open (settled in 1.5's design):*
-- The exact file naming (e.g. `users.collection.ts`) and helper name (e.g. `defineCollection`).
-- How collections interact with the file/folder sibling rule and with individual mock files for the same URL. One candidate is that an explicit mock file overrides that operation, as Mockoon does.
-- Whether list filtering or pagination query params are included.
-- The id strategy: numeric auto-increment vs a configurable key.
-- Whether collections work with scenarios.
+What changed, and why: this plan had a collection as one mock file that serves every CRUD route. During design the owner rejected that because it declares routes in code, against §3's "the file system is the only route spec." Instead, a collection is **data**: a folder's `_data.ts` file with `defineCollection(seed)`. The endpoints stay ordinary route files that import it, using one-liners (`users.create()`) or direct access (`users.insert(...)`). So:
+- **No new route kind.** Collections are reported through their own dev endpoint (`/_apitemkin/collections`), not as `collection` entries in discovery, so the 1.4 "third kind" room goes unused.
+- **The overlay** shows a collection line (count + Reset) at the top of its folder group.
+- **The open questions are settled in the spec:** file naming, the sibling rule, interaction with mock files (no conflict, since routes are always files), filtering and paging (not built in), the id strategy, and scenarios (through `defineMock`, unchanged).
+
+Still true from the original plan: seeds can come from `many()`; state is in memory only, never on disk; there are no relationships between collections; it depends on the 1.3 watcher fix.
 
 ### 2.0 (unscheduled)
 

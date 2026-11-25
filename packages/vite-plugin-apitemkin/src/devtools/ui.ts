@@ -9,7 +9,7 @@ import css from './styles.css?inline';
 import type { RouteEntry } from './match.js';
 import type { SelectionMap } from './state.js';
 import type { Activity } from './activity.js';
-import { launcherContent, overriddenKeys } from './model.js';
+import { launcherContent, overriddenKeys, type CollectionInfo } from './model.js';
 import { clampWidth, loadPrefs, savePrefs, THEMES, type Corner, type UiPrefs } from './prefs.js';
 import { mountGrip, syncGrip } from './grip.js';
 import { h, icon, ICON, isMac, isTextField } from './dom.js';
@@ -30,6 +30,14 @@ export interface PanelHooks {
   activity: Activity;
   origin: string;
   storage: Storage | null;
+  // ---- collections (1.5); optional so a panel without them behaves as in 1.4 ----
+  getCollections?: () => readonly CollectionInfo[];
+  /** The server's urlPrefix; undefined means unknown, so the list infers it. */
+  getUrlPrefix?: () => string | undefined;
+  /** Reset one collection to its seed; resolves once the count is updated. */
+  resetCollection?: (file: string, name: string) => Promise<void>;
+  /** Reload the counts. Called when the panel opens. */
+  refreshCollections?: () => Promise<void>;
 }
 
 export interface PanelController {
@@ -185,6 +193,10 @@ export function mountPanel(hooks: PanelHooks): PanelController {
     }
     rerender();
     focusInside();
+    // Counts may have moved while the panel was closed (requests from outside the page, file saves).
+    void hooks.refreshCollections?.().then(() => {
+      if (!panel.hidden) rerender();
+    });
   }
 
   function close(): void {

@@ -102,3 +102,41 @@ describe('inferPrefix', () => {
     expect(inferPrefix([R('GET', '/users'), R('GET', '/users/:id')])).toBe('');
   });
 });
+
+describe('groupRoutes with collections', () => {
+  const C = (url: string, name = 'users') => ({ name, file: `${name}/_data.ts`, url, count: 2 });
+
+  it('collections join the group of their folder url', () => {
+    const groups = groupRoutes([R('GET', '/api/users'), R('POST', '/api/users')], '/api', [C('/api/users')]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.label).toBe('/api/users');
+    expect(groups[0]!.collections).toEqual([C('/api/users')]);
+  });
+
+  it('a group with a collection never folds into root', () => {
+    const groups = groupRoutes([R('GET', '/api/todos')], '/api', [C('/api/todos', 'todos')]);
+    expect(groups.map((g) => [g.label, g.routes.length, g.collections.length])).toEqual([['/api/todos', 1, 1]]);
+  });
+
+  it('a collection with no routes still makes a group', () => {
+    const groups = groupRoutes([], '/api', [C('/api/users')]);
+    expect(groups.map((g) => [g.label, g.routes.length, g.collections.length])).toEqual([['/api/users', 0, 1]]);
+  });
+
+  it('a nested collection joins its first-segment group', () => {
+    const groups = groupRoutes([R('GET', '/api/orgs/:orgId/teams'), R('GET', '/api/orgs')], '/api', [
+      C('/api/orgs/:orgId', 'teams'),
+    ]);
+    expect(groups.map((g) => [g.label, g.collections.length])).toEqual([['/api/orgs', 1]]);
+  });
+
+  it('a collection at the prefix goes to the root group', () => {
+    const groups = groupRoutes([R('GET', '/api/health')], '/api', [C('/api', 'root')]);
+    expect(groups.map((g) => [g.label, g.routes.length, g.collections.length])).toEqual([['/api', 1, 1]]);
+  });
+
+  it('existing calls without collections get empty collection lists', () => {
+    const groups = groupRoutes([R('GET', '/api/a'), R('GET', '/api/users'), R('POST', '/api/users')], '/api');
+    expect(groups.every((g) => Array.isArray(g.collections) && g.collections.length === 0)).toBe(true);
+  });
+});

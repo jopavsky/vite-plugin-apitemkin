@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Collections: mocks that remember. `defineCollection(seed, options)` in a
+  folder's `_data.ts` file holds an in-memory list that route files share. One-liners
+  (`list()`, `get()`, `create()`, `replace()`, `update()`, `remove()`) give
+  standard REST behavior; direct access (`all()`, `find()`, `insert()`,
+  `patch()`, `delete()`) is for custom handlers. The data resets when the data
+  file is saved or the server restarts, and is never written to disk.
+- Dev endpoints `GET /_apitemkin/collections` and
+  `POST /_apitemkin/collections/reset`.
+- Overlay: each collection gets a line at the top of its folder group with its
+  record count and a Reset button.
+
+### Changed
+- Files named exactly `_data.ts`, `_data.js`, `_data.mjs` and `_data.json` are no
+  longer routes. `_data.json` is reserved and ignored with a warning.
+
+### Fixed
+- A request with `Content-Type: application/json` and a malformed body now
+  gets a 400 (`Request body is not valid JSON ...`) instead of a 500, on every
+  code mock.
+
 ## [1.4.0] — 2026-11-22
 
 ### Changed

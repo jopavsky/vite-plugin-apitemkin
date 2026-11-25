@@ -9,3 +9,7 @@ Thumbs.db
 .env
 .env.local
 .claude
+
+# Local tool state (any depth)
+.impeccable/
+.superpowers/

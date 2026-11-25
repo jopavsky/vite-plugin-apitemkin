@@ -297,6 +297,9 @@ Opens under the row, spanning all columns: a 2px hairline left rule, 12px inner 
 ### Group summary
 A 36px collapsible row with a stroked chevron, path in mono (prefix dimmed). When collapsed and containing overrides, a mustard "N overridden" chip appears; open groups hide it.
 
+### Collection line
+One line per collection, at the top of its folder group, above the route rows and quieter than them: a muted 16px stroked stack glyph, the collection's export name (mono 600, ink), the record count in muted sans with tabular numerals ("52 records", "1 record"), and a Reset pill. Reset is 28px tall, transparent with an Edge Slate border and muted text; hover takes Field White, an ink border and ink text, and while a reset is in flight it is marked busy with `aria-disabled` (Disabled Slate, hairline border), never natively disabled, so keyboard focus stays on it. A hairline separates the line from the first route row. The data file's path is the line's tooltip. When two collections in one group share an export name, each line also shows its folder (mono, muted) after the name. Never mustard: mustard is only for overridden scenarios. While the list is filtered, the line shows only next to a route that is still shown. Forced colors: ButtonText edge on Reset, CanvasText rule.
+
 ### Discovery states
 Loading is three hairline skeleton bars with a screen-reader label. Empty reads "No mocks yet. The village is empty." with a `mocks/hello.json` to `GET /api/hello` example in inline code. Error shows a brick heading with an alert icon, a mono detail line naming the failing discovery request, plain-language next step, and a Retry pill. Wit sits in the empty state; errors stay exact first.
 

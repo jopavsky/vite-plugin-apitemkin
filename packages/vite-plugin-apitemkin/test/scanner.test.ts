@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { scanMocks, isMockFile } from '../src/scanner.js';
+import { isDataFile, scanDataFiles } from '../src/core/scanner.js';
 
 let dir: string;
 
@@ -364,4 +365,62 @@ describe('scanMocks', () => {
 it('isMockFile recognizes every supported extension and nothing else', () => {
   for (const f of ['a.json', 'a.ts', 'a.js', 'a.mjs', 'x/[id].post.ts']) expect(isMockFile(f)).toBe(true);
   for (const f of ['a.md', 'a.tsx', 'a.cjs', 'a.json.bak', 'a']) expect(isMockFile(f)).toBe(false);
+});
+
+describe('collection data files', () => {
+  it('ignores _data.* files when building routes', async () => {
+    await write('users/_data.ts', 'export {}');
+    await write('users/index.ts', 'export default () => []');
+    await write('orders/_data.json', '[]');
+    await write('orders/index.json', '[]');
+    const routes = await scanMocks(dir);
+    expect(routes.map((r) => `${r.method} ${r.urlPattern}`).sort()).toEqual(['GET /api/orders', 'GET /api/users']);
+  });
+
+  it('a file named like an endpoint that only contains "data" is still a route', async () => {
+    await write('users/data.ts', 'export default () => []');
+    await write('users/my_data.ts', 'export default () => []');
+    await write('users/users.data.ts', 'export default () => []');
+    const routes = await scanMocks(dir);
+    expect(routes.map((r) => r.urlPattern).sort()).toEqual([
+      '/api/users/data',
+      '/api/users/my_data',
+      '/api/users/users.data',
+    ]);
+  });
+
+  it('does not treat a data file as a sibling of a folder', async () => {
+    await write('_data.ts', 'export {}');
+    await write('_data/index.json', '[]');
+    await expect(scanMocks(dir)).resolves.toHaveLength(1);
+  });
+
+  it('scanDataFiles lists data files with folder urls', async () => {
+    await write('users/_data.ts', 'export {}');
+    await write('orgs/[orgId]/_data.mjs', 'export {}');
+    await write('_data.ts', 'export {}');
+    await write('legacy/_data.json', '[]');
+    await write('users/index.json', '[]');
+    const files = await scanDataFiles(dir);
+    expect(files).toEqual([
+      expect.objectContaining({ file: '_data.ts', url: '/api', json: false }),
+      expect.objectContaining({ file: 'legacy/_data.json', url: '/api/legacy', json: true }),
+      expect.objectContaining({ file: 'orgs/[orgId]/_data.mjs', url: '/api/orgs/:orgId', json: false }),
+      expect.objectContaining({ file: 'users/_data.ts', url: '/api/users', json: false }),
+    ]);
+    expect(files.every((f) => f.filePath.startsWith(dir))).toBe(true);
+  });
+
+  it('scanDataFiles returns [] for a missing dir', async () => {
+    expect(await scanDataFiles(join(dir, 'nope'))).toEqual([]);
+  });
+
+  it('isDataFile matches only the reserved name', () => {
+    for (const f of ['_data.ts', '_data.js', '_data.mjs', '_data.json', 'x/y/_data.ts', 'x\\y\\_data.ts']) {
+      expect(isDataFile(f)).toBe(true);
+    }
+    for (const f of ['data.ts', 'a_data.ts', 'users.data.ts', '_data.tsx', '_data.post.ts', '__data.ts']) {
+      expect(isDataFile(f)).toBe(false);
+    }
+  });
 });

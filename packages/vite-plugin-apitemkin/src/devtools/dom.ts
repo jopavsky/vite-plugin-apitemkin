@@ -40,6 +40,7 @@ export const ICON = {
   auto: 'M8 2a6 6 0 1 1 0 12A6 6 0 0 1 8 2zM8 2v12',
   light: 'M8 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.5 1.5M11.5 11.5L13 13M3 13l1.5-1.5M11.5 4.5L13 3',
   dark: 'M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z',
+  data: 'M3 4c0-.9 2.2-1.5 5-1.5s5 .6 5 1.5-2.2 1.5-5 1.5S3 4.9 3 4zM3 4v8c0 .9 2.2 1.5 5 1.5s5-.6 5-1.5V4M3 8c0 .9 2.2 1.5 5 1.5s5-.6 5-1.5',
 };
 
 export const isMac = (): boolean => /Mac|iPhone|iPad/.test(navigator.platform);

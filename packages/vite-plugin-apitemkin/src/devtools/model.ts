@@ -4,9 +4,20 @@
 import type { RouteEntry } from './match.js';
 import { selectionKey, type SelectionMap } from './state.js';
 
+/** One collection from GET /_apitemkin/collections. */
+export interface CollectionInfo {
+  name: string;
+  file: string;
+  /** Folder URL, e.g. `/api/users`. */
+  url: string;
+  count: number;
+}
+
 export interface RouteGroup {
   label: string;
   routes: RouteEntry[];
+  /** Collections whose data file lives in this group's folder; drawn above the routes. */
+  collections: CollectionInfo[];
 }
 
 const segments = (url: string): string[] => url.split('/').filter((s) => s !== '');
@@ -32,25 +43,47 @@ export function inferPrefix(routes: readonly RouteEntry[]): string {
   return `/${first}`;
 }
 
-export function groupRoutes(routes: readonly RouteEntry[], prefix: string): RouteGroup[] {
+export function groupRoutes(
+  routes: readonly RouteEntry[],
+  prefix: string,
+  collections: readonly CollectionInfo[] = [],
+): RouteGroup[] {
   const rootLabel = prefix || '/';
-  const folders = new Map<string, RouteEntry[]>();
+  const folders = new Map<string, { routes: RouteEntry[]; collections: CollectionInfo[] }>();
   const root: RouteEntry[] = [];
+  const rootCollections: CollectionInfo[] = [];
+
+  const folderOf = (url: string): string | undefined => {
+    const rest = prefix && url.startsWith(prefix + '/') ? url.slice(prefix.length) : url === prefix ? '' : url;
+    return segments(rest)[0];
+  };
+  const slot = (folder: string) => {
+    let s = folders.get(folder);
+    if (!s) folders.set(folder, (s = { routes: [], collections: [] }));
+    return s;
+  };
 
   for (const r of routes) {
-    const rest = prefix && r.url.startsWith(prefix + '/') ? r.url.slice(prefix.length) : r.url;
-    const folder = segments(rest)[0];
+    const folder = folderOf(r.url);
     if (folder === undefined) root.push(r);
-    else folders.set(folder, [...(folders.get(folder) ?? []), r]);
+    else slot(folder).routes.push(r);
+  }
+  for (const c of collections) {
+    const folder = folderOf(c.url);
+    if (folder === undefined) rootCollections.push(c);
+    else slot(folder).collections.push(c);
   }
 
   const groups: RouteGroup[] = [];
-  for (const [folder, list] of folders) {
-    if (list.length === 1) root.push(list[0]!);
-    else groups.push({ label: `${prefix}/${folder}`, routes: list.sort(byUrlThenMethod) });
+  for (const [folder, s] of folders) {
+    // A lone route folds into the root group, unless a collection lives in its folder.
+    if (s.routes.length === 1 && s.collections.length === 0) root.push(s.routes[0]!);
+    else groups.push({ label: `${prefix}/${folder}`, routes: s.routes.sort(byUrlThenMethod), collections: s.collections });
   }
   groups.sort((a, b) => a.label.localeCompare(b.label));
-  if (root.length > 0) groups.unshift({ label: rootLabel, routes: root.sort(byUrlThenMethod) });
+  if (root.length > 0 || rootCollections.length > 0) {
+    groups.unshift({ label: rootLabel, routes: root.sort(byUrlThenMethod), collections: rootCollections });
+  }
   return groups;
 }
 

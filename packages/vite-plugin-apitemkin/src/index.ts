@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
 import { isMockFile } from './core/scanner.js';
 import { createMockEngine } from './core/engine.js';
+import { readJsonBody } from './core/runtime.js';
 
 export interface ApitemkinOptions {
   enabled?: boolean;
@@ -86,12 +87,20 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
         );
       }
 
+      // Sent to the overlay so it groups by the real prefix instead of guessing.
+      const trimmedPrefix = urlPrefix.replace(/^\/+/, '').replace(/\/+$/, '');
+      const normalizedPrefix = trimmedPrefix ? `/${trimmedPrefix}` : '';
+
       const engine = createMockEngine({
         mocksDir: resolvedMocksDir,
         urlPrefix,
         delay: globalDelay,
         fallthrough,
         loadModule: (p) => server.ssrLoadModule(p),
+        log: {
+          warn: (m) => server.config.logger.warn(m),
+          error: (m) => server.config.logger.error(m),
+        },
       });
 
       const rescan = async () => {
@@ -160,6 +169,53 @@ export default function apitemkin(options: ApitemkinOptions = {}): Plugin {
         res.end(JSON.stringify(entries));
       });
 
+      // v1.5: collections for the overlay (count + reset). Registered before
+      // the matcher, like the endpoints above.
+      server.middlewares.use(async (req, res, next) => {
+        const reqPath = (req.url ?? '').split('?')[0]!.split('#')[0]!;
+        const sendJson = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(body));
+        };
+
+        if (req.method === 'GET' && reqPath === '/_apitemkin/collections') {
+          sendJson(200, {
+            urlPrefix: normalizedPrefix,
+            collections: await engine.collections(),
+          });
+          return;
+        }
+
+        if (req.method === 'POST' && reqPath === '/_apitemkin/collections/reset') {
+          let body: unknown;
+          try {
+            body = await readJsonBody(req);
+          } catch {
+            body = undefined;
+          }
+          const { file, name } = (body ?? {}) as { file?: unknown; name?: unknown };
+          if (typeof file !== 'string' || typeof name !== 'string') {
+            const isJson = String(req.headers['content-type'] ?? '').toLowerCase().includes('application/json');
+            sendJson(400, {
+              error: isJson
+                ? 'apitemkin: reset needs a JSON body { "file": string, "name": string }'
+                : 'apitemkin: reset needs a JSON body { "file": string, "name": string } sent with Content-Type: application/json',
+            });
+            return;
+          }
+          const entry = await engine.resetCollection(file, name);
+          if (!entry) {
+            sendJson(404, { error: `apitemkin: no collection "${name}" in ${file}` });
+            return;
+          }
+          sendJson(200, entry);
+          return;
+        }
+
+        next();
+      });
+
       server.middlewares.use(async (req, res, next) => {
         if (!(await engine.handle(req, res))) next();
       });
@@ -186,6 +242,8 @@ export type { MatchResult } from './core/matcher.js';
 export { defineOverride } from './core/runtime.js';
 export { defineMock } from './core/define-mock.js';
 export { many } from './core/many.js';
+export { defineCollection } from './core/collection.js';
+export type { Collection, CollectionId, CollectionOptions } from './core/collection.js';
 export type {
   ApitemkinHandler,
   ApitemkinRequest,

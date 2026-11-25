@@ -48,6 +48,45 @@ export function isMockFile(file: string): boolean {
   return findExtension(file) !== undefined;
 }
 
+// The basename is exactly `_data`; the path may come before it.
+const DATA_FILE = /(?:^|[\\/])_data\.(?:ts|js|mjs|json)$/;
+
+/** A collection data file (`_data.ts|js|mjs|json`): never a route. */
+export function isDataFile(file: string): boolean {
+  return DATA_FILE.test(file);
+}
+
+export interface DataFile {
+  /** Absolute path. */
+  filePath: string;
+  /** Relative to the mocks dir, `/` separators. */
+  file: string;
+  /** URL of the folder the file lives in, e.g. `/api/users` or `/api`. */
+  url: string;
+  /** `_data.json`: reserved, not supported yet. */
+  json: boolean;
+}
+
+export async function scanDataFiles(
+  rootDir: string,
+  urlPrefix = '/api',
+): Promise<DataFile[]> {
+  const prefix = normalizePrefix(urlPrefix);
+  const out: DataFile[] = [];
+  for await (const filePath of walkMocks(rootDir)) {
+    if (!isDataFile(filePath)) continue;
+    const parts = relative(rootDir, filePath).split(sep);
+    out.push({
+      filePath,
+      file: parts.join('/'),
+      url: buildUrlPattern(prefix, parts.slice(0, -1).map(parseSegment)),
+      json: filePath.endsWith('.json'),
+    });
+  }
+  out.sort((a, b) => a.file.localeCompare(b.file));
+  return out;
+}
+
 function kindForExtension(ext: KnownExtension): MockRouteKind {
   return ext === '.json' ? 'json' : 'code';
 }
@@ -63,6 +102,7 @@ export async function scanMocks(
   const seen = new Map<string, string>();
 
   for await (const filePath of walkMocks(rootDir)) {
+    if (isDataFile(filePath)) continue;
     const { method, urlPattern, segments, kind } = buildRoute(filePath, rootDir, prefix);
     const key = `${method} ${urlPattern}`;
     const existing = seen.get(key);
@@ -102,7 +142,7 @@ async function detectAmbiguity(dir: string): Promise<void> {
       folderNames.add(entry.name);
     } else if (entry.isFile()) {
       const ext = findExtension(entry.name);
-      if (!ext) continue;
+      if (!ext || isDataFile(entry.name)) continue;
       const noExt = entry.name.slice(0, -ext.length);
       const { name } = parseFilename(noExt);
       if (name !== 'index') {
